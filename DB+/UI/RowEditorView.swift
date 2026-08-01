@@ -80,7 +80,9 @@ struct RowEditorView: View {
             }
             .padding()
         }
+        #if os(macOS)
         .frame(width: 520, height: 560)
+        #endif
     }
 
     @ViewBuilder

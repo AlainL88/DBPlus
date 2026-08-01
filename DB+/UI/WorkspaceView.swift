@@ -51,11 +51,15 @@ struct WorkspaceView: View {
         }
         .sheet(isPresented: $showQueryConsole) {
             QueryConsoleView(session: session)
+                #if os(macOS)
                 .frame(minWidth: 900, minHeight: 620)
+                #endif
         }
         .sheet(isPresented: $showBenchmark) {
             BenchmarkView(session: session, defaultSchema: selectedSchema ?? session.profile.defaultSchema)
+                #if os(macOS)
                 .frame(minWidth: 860, minHeight: 560)
+                #endif
         }
     }
 

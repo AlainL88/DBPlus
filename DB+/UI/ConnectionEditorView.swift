@@ -91,7 +91,9 @@ struct ConnectionEditorView: View {
             Divider()
             footer
         }
+        #if os(macOS)
         .frame(width: 560, height: 620)
+        #endif
     }
 
     private var header: some View {

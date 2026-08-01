@@ -14,7 +14,9 @@ struct DB_App: App {
     var body: some Scene {
         WindowGroup {
             MainWindowView(store: store)
+                #if os(macOS)
                 .frame(minWidth: 1080, minHeight: 680)
+                #endif
         }
     }
 }
