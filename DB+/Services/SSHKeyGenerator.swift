@@ -26,15 +26,25 @@ enum SSHKeyGenerator {
     /// poi restituisce i percorsi e la chiave pubblica.
     static func generateEd25519(name: String, comment: String = "") throws -> GeneratedKey {
         let safeName = sanitize(name)
+        // Il commento finisce nella riga .pub: rimuove i newline per evitare
+        // di corrompere l'artefatto che l'utente incolla in authorized_keys.
+        let safeComment = comment.filter { !$0.isNewline }
         let directory = try keysDirectory()
         let privateURL = try uniqueFileURL(in: directory, baseName: safeName)
         let publicURL = directory.appendingPathComponent(privateURL.lastPathComponent + ".pub")
 
         let privateKey = Curve25519.Signing.PrivateKey()
-        let pem = privateKey.makeSSHRepresentation(comment: comment)
-        let publicKeyLine = try makePublicKeyLine(privateKey: privateKey, comment: comment)
+        let pem = privateKey.makeSSHRepresentation(comment: safeComment)
+        let publicKeyLine = makePublicKeyLine(privateKey: privateKey, comment: safeComment)
 
+        #if os(iOS)
+        try Data(pem.utf8).write(to: privateURL, options: [.atomic, .completeFileProtection])
+        #else
         try Data(pem.utf8).write(to: privateURL, options: .atomic)
+        #endif
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: privateURL.path)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+
         try Data((publicKeyLine + "\n").utf8).write(to: publicURL, options: .atomic)
 
         return GeneratedKey(
@@ -86,7 +96,7 @@ enum SSHKeyGenerator {
     /// Riga OpenSSH "ssh-ed25519 <base64> <comment>" (wire-format: due ssh-string).
     private static func makePublicKeyLine(
         privateKey: Curve25519.Signing.PrivateKey, comment: String
-    ) throws -> String {
+    ) -> String {
         var data = Data()
         appendSSHString("ssh-ed25519", to: &data)
         appendSSHString(privateKey.publicKey.rawRepresentation, to: &data)
