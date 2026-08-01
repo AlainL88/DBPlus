@@ -2,9 +2,9 @@
 //  SSHTransport.swift
 //  DB+
 //
-//  Connessione via tunnel SSH: apre un port forwarding locale con OpenSSH
-//  di sistema, poi si collega al database su 127.0.0.1:portaLocale
-//  usando MySQLNIO (stesso percorso del trasporto diretto).
+//  Connessione via tunnel SSH: apre un port forwarding locale (OpenSSH di
+//  sistema su macOS, client SSH in-process su iOS), poi si collega al database
+//  su 127.0.0.1:portaLocale usando MySQLNIO (stesso percorso del trasporto diretto).
 //
 
 import Foundation
@@ -18,7 +18,7 @@ final class SSHTransport: DatabaseTransport {
     private let sshPassword: String?
     private let sshPassphrase: String?
 
-    private let tunnel = SSHProcessTunnel()
+    private let tunnel: SSHTunnel
     private var inner: DirectTransport?
 
     init(profile: ConnectionProfile, databasePassword: String?, sshPassword: String?, sshPassphrase: String?) {
@@ -26,14 +26,16 @@ final class SSHTransport: DatabaseTransport {
         self.databasePassword = databasePassword
         self.sshPassword = sshPassword
         self.sshPassphrase = sshPassphrase
+        #if os(macOS)
+        self.tunnel = SSHProcessTunnel()
+        #else
+        self.tunnel = SSHInProcessTunnel()
+        #endif
     }
 
     func connect() async throws -> ServerInfo {
-        #if !os(macOS)
-        throw DBError.invalid("Il tunnel SSH è disponibile solo su macOS.")
-        #else
         let start = DispatchTime.now()
-        let localPort = try await tunnel.start(profile: profile, password: sshPassword, passphrase: sshPassphrase)
+        let localPort = try await tunnel.start(profile: profile, password: sshPassword, passphrase: sshPassphrase, timeout: 30)
 
         var localProfile = profile
         localProfile.host = "127.0.0.1"
@@ -48,17 +50,16 @@ final class SSHTransport: DatabaseTransport {
             let latency = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000
             return ServerInfo(version: info.version, host: profile.sshHost, latencyMS: latency, transportMode: .ssh)
         } catch {
-            tunnel.teardown()
+            await tunnel.teardown()
             self.inner = nil
             throw error
         }
-        #endif
     }
 
     func close() async {
         await inner?.close()
         inner = nil
-        tunnel.teardown()
+        await tunnel.teardown()
         isConnected = false
     }
 

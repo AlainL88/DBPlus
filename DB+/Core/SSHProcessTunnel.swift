@@ -19,7 +19,7 @@ import Foundation
 
 #if os(macOS)
 
-final class SSHProcessTunnel {
+final class SSHProcessTunnel: SSHTunnel {
     private var process: Process?
     private var helperDirectory: URL?
     private var stderrBuffer = LockedBuffer()
@@ -100,7 +100,7 @@ final class SSHProcessTunnel {
 
         let isUp = process.isRunning
         let stderr = stderrBuffer.drain()
-        teardown()
+        await teardown()
 
         if isUp && !stderr.isEmpty {
             throw DBError.invalid("Tunnel SSH stabilito ma il server ha riportato: \(stderr)")
@@ -109,7 +109,7 @@ final class SSHProcessTunnel {
     }
 
     /// Rilascia il processo ssh e i file temporanei dei segreti.
-    func teardown() {
+    func teardown() async {
         if let process, process.isRunning {
             process.terminate()
             let deadline = Date().addingTimeInterval(3)
@@ -221,19 +221,19 @@ private enum SharedHelperDirectory {
 
 #else
 
-/// Su iOS/iPadOS il tunnel via OpenSSH di sistema non esiste:
-/// la modalità SSH non è disponibile.
-final class SSHProcessTunnel {
+/// Su iOS/iPadOS il tunnel via OpenSSH di sistema non esiste: qui vive solo
+/// lo stub di compatibilità; la modalità SSH usa `SSHInProcessTunnel`.
+final class SSHProcessTunnel: SSHTunnel {
     func start(
         profile: ConnectionProfile,
         password: String?,
         passphrase: String?,
         timeout: TimeInterval = 30
     ) async throws -> Int {
-        throw DBError.invalid("Il tunnel SSH è disponibile solo su macOS.")
+        throw DBError.invalid("Tunnel OpenSSH di sistema non disponibile su iOS: usare il tunnel in-process.")
     }
 
-    func teardown() {}
+    func teardown() async {}
 }
 
 #endif // os(macOS)

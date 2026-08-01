@@ -12,13 +12,9 @@ struct ConnectionEditorView: View {
 
     @State private var showKeyImporter = false
 
-    /// Modalità disponibili: su iOS/iPadOS il tunnel SSH non è utilizzabile.
+    /// Modalità disponibili su questa piattaforma (tutte, incluso il tunnel SSH).
     private var availableModes: [ConnectionMode] {
-        #if os(macOS)
-        return ConnectionMode.allCases
-        #else
-        return ConnectionMode.allCases.filter { $0 != .ssh }
-        #endif
+        ConnectionMode.allCases
     }
 
     @State private var name = ""
@@ -86,17 +82,7 @@ struct ConnectionEditorView: View {
             ScrollView {
                 Form {
                     generalSection
-                    if mode == .ssh {
-                        #if os(macOS)
-                        sshSection
-                        #else
-                        Section("Tunnel SSH") {
-                            Label("Il tunnel SSH è disponibile solo su macOS.",
-                                  systemImage: "exclamationmark.triangle")
-                                .foregroundStyle(.orange)
-                        }
-                        #endif
-                    }
+                    if mode == .ssh { sshSection }
                     if mode == .bridge { bridgeSection }
                     securitySection
                 }
@@ -168,7 +154,7 @@ struct ConnectionEditorView: View {
                     allowsMultipleSelection: false
                 ) { result in
                     if case .success(let urls) = result, let url = urls.first {
-                        sshKeyPath = url.path
+                        importKey(url: url)
                     }
                 }
                 Toggle("La chiave ha una passphrase", isOn: $sshUsePassphrase)
@@ -215,6 +201,34 @@ struct ConnectionEditorView: View {
                 .disabled(name.isEmpty || host.isEmpty)
         }
         .padding()
+    }
+
+    /// Importa una chiave privata selezionata con il fileImporter.
+    /// Su macOS conserva il percorso originale; su iOS/iPadOS la copia nella
+    /// sandbox dell'app (Application Support/SSHKeys) perché il percorso
+    /// temporaneo del fileImporter non persiste tra i lanci.
+    private func importKey(url: URL) {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+
+        #if os(macOS)
+        sshKeyPath = url.path
+        #else
+        do {
+            let fm = FileManager.default
+            let dir = try fm.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+                .appendingPathComponent("SSHKeys", isDirectory: true)
+            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            let dest = dir.appendingPathComponent("key_\(url.lastPathComponent)")
+            if fm.fileExists(atPath: dest.path) {
+                try fm.removeItem(at: dest)
+            }
+            try fm.copyItem(at: url, to: dest)
+            sshKeyPath = dest.path
+        } catch {
+            sshKeyPath = url.path
+        }
+        #endif
     }
 
     private func save() {

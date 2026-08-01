@@ -8,14 +8,14 @@ richieste per la distribuzione.
 
 ## 1. Oggetto
 
-DB+ è un'applicazione desktop macOS per la gestione di database
+DB+ è un'applicazione macOS/iOS (SwiftUI) per la gestione di database
 MySQL/MariaDB. Utilizza esclusivamente **crittografia standard** a
 scopi di trasporto/autenticazione:
 
 | Funzione | Algoritmo / Meccanismo | Uso |
 |---|---|---|
 | Connessione diretta | TLS 1.2/1.3 | Cifratura del canale verso MySQL |
-| Tunnel SSH | SSH (OpenSSH), RSA/Ed25519, AES-CTR/GCM | Port forwarding cifrato |
+| Tunnel SSH | SSH — OpenSSH (macOS) / Citadel in-process (iOS): RSA/Ed25519, AES-GCM/CTR, ChaCha20-Poly1305 | Port forwarding cifrato |
 | Bridge HTTPS | TLS 1.2/1.3 (ATS) | Trasporto delle richieste JSON |
 | Firma del bridge | HMAC-SHA256 | Autenticazione messaggi (anti-tamper) |
 | Archiviazione segreti | Keychain di sistema (AES) | Credenziali locali |
@@ -97,8 +97,10 @@ La distribuzione del prodotto si basa su:
 
 Sulla piattaforma iOS/iPadOS:
 - l'**App Sandbox è sempre attiva** (imposta dal sistema);
-- il **tunnel SSH è disabilitato** (nessun `/usr/bin/ssh`), quindi il
-  vincolo di cui sopra non si applica;
+- il **tunnel SSH usa un client in-process** (Citadel su SwiftNIO +
+  swift-crypto) invece di `/usr/bin/ssh`: nessun processo figlio, quindi
+  il vincolo sul lancio di processi non si applica; la chiave privata
+  importata viene copiata nella sandbox dell'app (Application Support);
 - il resto del trasporto (diretta, bridge HTTPS) opera entro i
   permessi di rete standard;
 - per l'**App Store** vale la stessa dichiarazione di esportazione

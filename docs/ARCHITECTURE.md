@@ -1,6 +1,6 @@
 # DB+ — Architettura e Selezione dello Stack
 
-**Versione:** 1.1 — **Data:** 2026-08-01
+**Versione:** 1.2 — **Data:** 2026-08-01
 **Piattaforme target:** macOS (26.5) + iOS/iPadOS (26.5) — SwiftUI, codice condiviso
 
 ## 1. Sintesi
@@ -29,7 +29,7 @@ grid, query runner, benchmark) dalle tre implementazioni di rete.
             ┌──────────────────────┬────────────────────────┐
             ▼                      ▼                        ▼
    DirectTransport          SSHTransport            BridgeTransport
-   (MySQLNIO, TLS)     (Process ssh -L + MySQLNIO)  (URLSession + HMAC)
+   (MySQLNIO, TLS)     (tunnel SSH + MySQLNIO)      (URLSession + HMAC)
             │                      │                        │
         MySQL/MariaDB          SSH gateway             HTTPS → db_bridge.php
 ```
@@ -39,7 +39,8 @@ grid, query runner, benchmark) dalle tre implementazioni di rete.
 | Esigenza | Opzioni valutate | Scelta | Motivazione |
 |---|---|---|---|
 | Client MySQL | MySQLNIO · Fluent/MySQLKit · libmysqlclient C · client obsoleti | **MySQLNIO** | Pure Swift, async/await, prepared statements server-side, streaming delle righe (impronta di memoria), TLS integrato, manutenzione attiva (Vapor). Un ORM non è adatto a un tool che esegue SQL arbitrario. |
-| Tunnel SSH | SwiftSH (libssh2) · libssh2 C · **OpenSSH di sistema** | **OpenSSH** via `Process` | SwiftSH non implementa il port forwarding e imbarca binari OpenSSL/libssh2 precompilati (rischio supply-chain). OpenSSH di Apple: zero dipendenze, Ed25519/RSA nativi, keep-alive robusto, password/chiave+passphrase via `SSH_ASKPASS` (helper temporaneo `0600`, rimosso subito). |
+| Tunnel SSH (macOS) | SwiftSH (libssh2) · libssh2 C · **OpenSSH di sistema** | **OpenSSH** via `Process` | SwiftSH non implementa il port forwarding e imbarca binari OpenSSL/libssh2 precompilati (rischio supply-chain). OpenSSH di Apple: zero dipendenze, Ed25519/RSA nativi, keep-alive robusto, password/chiave+passphrase via `SSH_ASKPASS` (helper temporaneo `0600`, rimosso subito). |
+| Tunnel SSH (iOS) | SwiftSH · libssh2/OpenSSL XCFramework · **Citadel** | **Citadel** (SwiftNIO + swift-crypto) | Su iOS non esiste `/usr/bin/ssh` e la sandbox vieta processi figli: serve un client SSH **in-process**. Citadel (MIT, SPM, nessun binario precompilato) supporta password, RSA, Ed25519, passphrase e canali **direct-tcpip** sullo stesso stack SwiftNIO già usato da MySQLNIO. Richiede iOS 17+/macOS 14+. |
 | Bridge HTTPS | URLSession + ATS | **URLSession** | Nativo, HTTPS/TLS, streaming, misura della latenza. |
 | Credenziali | Keychain · file cifrato · UserDefaults | **Keychain** (`kSecClassGenericPassword`) | Cifratura nativa del sistema, segreti mai su disco in chiaro. |
 | Stato UI | @ObservableObject · @Observable | **@Observable** (Observation) | Sintassi moderna, coerente con macOS 26. |
@@ -80,12 +81,16 @@ accettare certificati self-signed (config `allowSelfSignedTLS`).
 
 Il teardown rilascia processo e file temporanei (SIGTERM → SIGKILL).
 
-> **Multi-piattaforma:** il tunnel SSH si basa su OpenSSH di sistema
-> (`/usr/bin/ssh`) ed è **disponibile solo su macOS**. Su iOS/iPadOS
-> la modalità SSH è nascosta dall'editor delle connessioni; una
-> connessione esistente con modalità SSH restituisce un errore
-> esplicativo (`SSHProcessTunnel`/`SSHTransport` sono compilati con
-> guardie `#if os(macOS)` e uno stub su iOS).
+> **Multi-piattaforma:** su macOS il tunnel usa OpenSSH di sistema
+> (`/usr/bin/ssh`, `SSHProcessTunnel`). Su iOS/iPadOS — dove `/usr/bin/ssh`
+> non esiste e la sandbox vieta processi figli — viene usato un client SSH
+> **in-process** (`SSHInProcessTunnel`, libreria **Citadel**): apre un
+> listener TCP su `127.0.0.1` e instrada ogni connessione su un canale SSH
+> **direct-tcpip** verso il server MySQL. Entrambe le implementazioni
+> condividono il contratto `SSHTunnel` e supportano password o chiave
+> RSA/Ed25519 (anche protetta da passphrase, formato `openssh-key-v1`).
+> Su iOS le letture del canale locale sono sospese finché il canale SSH non
+> è pronto, così il primo byte dell'handshake MySQL non viene perso.
 
 ### 3.3 Tunnel HTTPS (Bridge)
 `BridgeTransport` invia richieste JSON a `db_bridge.php`:
@@ -138,7 +143,7 @@ Il codice è condiviso tra le piattaforme tramite guardie `#if os(macOS)`:
 | Bridge HTTPS | ✅ | ✅ |
 | Keychain (`SecretStore`) | ✅ | ✅ |
 | Data grid / CRUD / benchmark | ✅ | ✅ |
-| Tunnel SSH | ✅ OpenSSH di sistema | ❌ disabilitato (stub) |
+| Tunnel SSH | ✅ OpenSSH di sistema | ✅ client in-process (Citadel) |
 | Editor SQL | `NSTextView` + syntax highlighting | `TextEditor` (SwiftUI) |
 | Colori | `Color(nsColor:)` | `Color(uiColor:)` (helper `PlatformColor`) |
 | Selettore file | `NSOpenPanel` | `.fileImporter` (SwiftUI) |
@@ -150,8 +155,9 @@ Il codice è condiviso tra le piattaforme tramite guardie `#if os(macOS)`:
 DB+/
   DB+/Models/          ConnectionProfile, CellValue, QueryTypes, SchemaModels
   DB+/Core/            DatabaseTransport, DirectTransport, SSHTransport,
-                       SSHProcessTunnel, BridgeTransport, SQLSplitter,
-                       SQLGuard, SQLHighlighter, DBError
+                       SSHTunnel, SSHProcessTunnel, SSHInProcessTunnel,
+                       BridgeTransport, SQLSplitter, SQLGuard, SQLHighlighter,
+                       DBError
   DB+/Security/        SecretStore (Keychain)
   DB+/Services/        ConnectionStore, ConnectionSession, SchemaInspector,
                        DataGridService, QueryRunner, BenchmarkService
