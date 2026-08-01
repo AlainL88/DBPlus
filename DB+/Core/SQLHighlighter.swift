@@ -6,8 +6,10 @@
 //  Tokenizer basato su espressioni regolari, applicato a un NSTextView.
 //
 
-import AppKit
 import Foundation
+
+#if os(macOS)
+import AppKit
 
 enum SQLHighlighter {
 
@@ -131,3 +133,5 @@ extension NSTextCheckingResult {
         range(at: 0)
     }
 }
+
+#endif // os(macOS)

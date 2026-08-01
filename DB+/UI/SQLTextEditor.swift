@@ -2,11 +2,16 @@
 //  SQLTextEditor.swift
 //  DB+
 //
-//  Editor SQL basato su NSTextView con evidenziazione sintattica MySQL/MariaDB.
+//  Editor SQL:
+//    - macOS: NSTextView con evidenziazione sintattica MySQL/MariaDB.
+//    - iOS/iPadOS: TextEditor di SwiftUI (evidenziazione in una release futura).
 //
 
-import AppKit
 import SwiftUI
+
+#if os(macOS)
+
+import AppKit
 
 struct SQLTextEditor: NSViewRepresentable {
     @Binding var text: String
@@ -80,3 +85,20 @@ struct SQLTextEditor: NSViewRepresentable {
         }
     }
 }
+
+#else
+
+import UIKit
+
+struct SQLTextEditor: View {
+    @Binding var text: String
+
+    var body: some View {
+        TextEditor(text: $text)
+            .font(.system(size: 13, design: .monospaced))
+            .scrollContentBackground(.hidden)
+            .padding(4)
+    }
+}
+
+#endif

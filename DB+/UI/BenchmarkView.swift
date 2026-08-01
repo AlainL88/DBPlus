@@ -6,9 +6,11 @@
 //  Report esportabile in formato testo.
 //
 
-import AppKit
 import SwiftUI
+#if os(macOS)
+import AppKit
 import UniformTypeIdentifiers
+#endif
 
 struct BenchmarkView: View {
     let session: ConnectionSession
@@ -56,21 +58,27 @@ struct BenchmarkView: View {
                     if on { sizes.insert(1_000) } else { sizes.remove(1_000) }
                 }
             ))
+            #if os(macOS)
             .toggleStyle(.checkbox)
+            #endif
             Toggle("10k", isOn: Binding(
                 get: { sizes.contains(10_000) },
                 set: { on in
                     if on { sizes.insert(10_000) } else { sizes.remove(10_000) }
                 }
             ))
+            #if os(macOS)
             .toggleStyle(.checkbox)
+            #endif
             Toggle("50k", isOn: Binding(
                 get: { sizes.contains(50_000) },
                 set: { on in
                     if on { sizes.insert(50_000) } else { sizes.remove(50_000) }
                 }
             ))
+            #if os(macOS)
             .toggleStyle(.checkbox)
+            #endif
 
             Spacer()
 
@@ -140,10 +148,12 @@ struct BenchmarkView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            #if os(macOS)
             Button("Esporta report…") {
                 exportReport()
             }
             .disabled(metrics.isEmpty)
+            #endif
             Button("Chiudi") { dismiss() }
         }
         .padding(.horizontal, 12)
@@ -178,6 +188,7 @@ struct BenchmarkView: View {
         }
     }
 
+    #if os(macOS)
     private func exportReport() {
         var lines: [String] = []
         lines.append("DB+ — Report di benchmarking")
@@ -203,4 +214,5 @@ struct BenchmarkView: View {
             }
         }
     }
+    #endif
 }

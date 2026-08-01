@@ -116,7 +116,9 @@ struct RowEditorView: View {
                     }
                 }
             ))
+            #if os(macOS)
             .toggleStyle(.checkbox)
+            #endif
             .disabled(!isEditable)
 
             TextField("", text: Binding(

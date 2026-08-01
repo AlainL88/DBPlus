@@ -17,6 +17,8 @@
 import Darwin
 import Foundation
 
+#if os(macOS)
+
 final class SSHProcessTunnel {
     private var process: Process?
     private var helperDirectory: URL?
@@ -216,3 +218,22 @@ private final class LockedBuffer: @unchecked Sendable {
 private enum SharedHelperDirectory {
     static var value: URL?
 }
+
+#else
+
+/// Su iOS/iPadOS il tunnel via OpenSSH di sistema non esiste:
+/// la modalità SSH non è disponibile.
+final class SSHProcessTunnel {
+    func start(
+        profile: ConnectionProfile,
+        password: String?,
+        passphrase: String?,
+        timeout: TimeInterval = 30
+    ) async throws -> Int {
+        throw DBError.invalid("Il tunnel SSH è disponibile solo su macOS.")
+    }
+
+    func teardown() {}
+}
+
+#endif // os(macOS)

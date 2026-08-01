@@ -29,6 +29,9 @@ final class SSHTransport: DatabaseTransport {
     }
 
     func connect() async throws -> ServerInfo {
+        #if !os(macOS)
+        throw DBError.invalid("Il tunnel SSH è disponibile solo su macOS.")
+        #else
         let start = DispatchTime.now()
         let localPort = try await tunnel.start(profile: profile, password: sshPassword, passphrase: sshPassphrase)
 
@@ -49,6 +52,7 @@ final class SSHTransport: DatabaseTransport {
             self.inner = nil
             throw error
         }
+        #endif
     }
 
     func close() async {

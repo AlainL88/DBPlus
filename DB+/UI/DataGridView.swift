@@ -22,7 +22,9 @@ struct DataGridView: View {
 
     @State private var editing: (row: Int, col: Int)?
     @State private var editText = ""
+    #if os(macOS)
     @State private var hovered: (row: Int, col: Int)?
+    #endif
 
     private let columnWidth: CGFloat = 160
 
@@ -38,8 +40,10 @@ struct DataGridView: View {
                 }
             }
         }
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(Color.gridBackground)
+        #if os(macOS)
         .onExitCommand { editing = nil }
+        #endif
     }
 
     // MARK: - Header
@@ -48,7 +52,7 @@ struct DataGridView: View {
         HStack(spacing: 0) {
             // Colonne numerazione
             ZStack {
-                Color(nsColor: .controlBackgroundColor)
+                Color.gridBackground
             }
             .frame(width: 44, height: 28)
             .overlay(alignment: .bottom) { Divider() }
@@ -58,7 +62,7 @@ struct DataGridView: View {
                 columnHeader(index: columnIndex)
             }
         }
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(Color.gridBackground)
     }
 
     private func columnHeader(index: Int) -> some View {
@@ -100,7 +104,7 @@ struct DataGridView: View {
 
         HStack(spacing: 0) {
             ZStack {
-                isSelected ? Color(nsColor: .selectedContentBackgroundColor) : Color.clear
+                isSelected ? Color.selectedRowBackground : Color.clear
             }
             .frame(width: 44, height: 24)
             .overlay(alignment: .bottom) { Divider().opacity(0.3) }
@@ -123,14 +127,13 @@ struct DataGridView: View {
 
     private func cellView(row: Int, col: Int, value: CellValue, isSelected: Bool) -> some View {
         let isEditing = editing?.row == row && editing?.col == col
-        let bg: Color
-        if isSelected {
-            bg = Color(nsColor: .selectedContentBackgroundColor)
-        } else if hovered?.row == row {
-            bg = Color.primary.opacity(0.05)
-        } else {
-            bg = Color.clear
-        }
+        let bg: Color = {
+            if isSelected { return Color.selectedRowBackground }
+            #if os(macOS)
+            if hovered?.row == row { return Color.primary.opacity(0.05) }
+            #endif
+            return Color.clear
+        }()
 
         return HStack(spacing: 0) {
             ZStack {
@@ -142,9 +145,11 @@ struct DataGridView: View {
                         .onSubmit {
                             commit(row: row, col: col)
                         }
+                        #if os(macOS)
                         .onExitCommand {
                             editing = nil
                         }
+                        #endif
                         .padding(.horizontal, 6)
                 } else {
                     Text(display(value, at: col))
@@ -159,9 +164,11 @@ struct DataGridView: View {
             .overlay(alignment: .bottom) { Divider().opacity(0.3) }
             .overlay(alignment: .leading) { Divider().opacity(0.3) }
         }
+        #if os(macOS)
         .onHover { hovering in
             hovered = hovering ? (row: row, col: col) : nil
         }
+        #endif
         .onTapGesture(count: 2) {
             guard onEditCell != nil else { return }
             editText = value.isNull ? "" : value.editString

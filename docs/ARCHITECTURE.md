@@ -1,7 +1,7 @@
 # DB+ — Architettura e Selezione dello Stack
 
-**Versione:** 1.0 — **Data:** 2026-08-01
-**Piattaforma target:** macOS (SwiftUI), deployment target macOS 26.5
+**Versione:** 1.1 — **Data:** 2026-08-01
+**Piattaforme target:** macOS (26.5) + iOS/iPadOS (26.5) — SwiftUI, codice condiviso
 
 ## 1. Sintesi
 
@@ -80,6 +80,13 @@ accettare certificati self-signed (config `allowSelfSignedTLS`).
 
 Il teardown rilascia processo e file temporanei (SIGTERM → SIGKILL).
 
+> **Multi-piattaforma:** il tunnel SSH si basa su OpenSSH di sistema
+> (`/usr/bin/ssh`) ed è **disponibile solo su macOS**. Su iOS/iPadOS
+> la modalità SSH è nascosta dall'editor delle connessioni; una
+> connessione esistente con modalità SSH restituisce un errore
+> esplicativo (`SSHProcessTunnel`/`SSHTransport` sono compilati con
+> guardie `#if os(macOS)` e uno stub su iOS).
+
 ### 3.3 Tunnel HTTPS (Bridge)
 `BridgeTransport` invia richieste JSON a `db_bridge.php`:
 - autenticazione **Bearer token** (`X-DBPlus-Token`);
@@ -120,6 +127,22 @@ streaming, resilienza (10 ping, keep-alive, teardown). Dettagli in
 - **Prepared statements** per ogni scrittura generata.
 - **Keychain** per password/passphrase/token; helper askpass temporaneo.
 - **Bridge:** token + HMAC + rate limit + sanificazione.
+
+## 6bis. Adattamento a iOS/iPadOS
+
+Il codice è condiviso tra le piattaforme tramite guardie `#if os(macOS)`:
+
+| Componente | macOS | iOS/iPadOS |
+|---|---|---|
+| Client MySQL (MySQLNIO) | ✅ | ✅ |
+| Bridge HTTPS | ✅ | ✅ |
+| Keychain (`SecretStore`) | ✅ | ✅ |
+| Data grid / CRUD / benchmark | ✅ | ✅ |
+| Tunnel SSH | ✅ OpenSSH di sistema | ❌ disabilitato (stub) |
+| Editor SQL | `NSTextView` + syntax highlighting | `TextEditor` (SwiftUI) |
+| Colori | `Color(nsColor:)` | `Color(uiColor:)` (helper `PlatformColor`) |
+| Selettore file | `NSOpenPanel` | `.fileImporter` (SwiftUI) |
+| Export report benchmark | `NSSavePanel` | nascosto |
 
 ## 7. Struttura dei moduli
 

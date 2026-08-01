@@ -16,7 +16,7 @@ struct QueryResultView: View {
             Divider()
             content
         }
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(Color.gridBackground)
     }
 
     private var header: some View {

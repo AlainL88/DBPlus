@@ -93,6 +93,19 @@ La distribuzione del prodotto si basa su:
   Per una futura distribuzione sandboxata andrebbe rivisto il modulo
   SSH (es. client SSH puro in-process).
 
+### 4.1 iOS / iPadOS
+
+Sulla piattaforma iOS/iPadOS:
+- l'**App Sandbox è sempre attiva** (imposta dal sistema);
+- il **tunnel SSH è disabilitato** (nessun `/usr/bin/ssh`), quindi il
+  vincolo di cui sopra non si applica;
+- il resto del trasporto (diretta, bridge HTTPS) opera entro i
+  permessi di rete standard;
+- per l'**App Store** vale la stessa dichiarazione di esportazione
+  della sezione 3 (`ITSAppUsesNonExemptEncryption = false`): la
+  crittografia usata (TLS, SSH, HMAC-SHA256, AES del Keychain) è
+  esente ai sensi della categoria 5.
+
 ## 5. Best practice di sicurezza correlate
 
 - Segreti conservati **solo** nel Keychain (`kSecAttrAccessible

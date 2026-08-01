@@ -145,12 +145,12 @@ struct QueryConsoleView: View {
                                         .foregroundStyle(.secondary)
                                 }
                                 .padding(6)
-                                .background(Color(nsColor: .underPageBackgroundColor))
+                                .background(Color.underPageBackground)
                                 Divider()
                                 QueryResultView(result: result)
                             }
                             .clipShape(RoundedRectangle(cornerRadius: 6))
-                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor)))
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.separatorLine))
                         }
                     }
                     .padding(8)

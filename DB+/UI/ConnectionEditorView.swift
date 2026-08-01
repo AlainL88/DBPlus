@@ -3,13 +3,23 @@
 //  DB+
 //
 
-import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
 struct ConnectionEditorView: View {
     let onSave: (ConnectionProfile) -> Void
     @Environment(\.dismiss) private var dismiss
+
+    @State private var showKeyImporter = false
+
+    /// Modalità disponibili: su iOS/iPadOS il tunnel SSH non è utilizzabile.
+    private var availableModes: [ConnectionMode] {
+        #if os(macOS)
+        return ConnectionMode.allCases
+        #else
+        return ConnectionMode.allCases.filter { $0 != .ssh }
+        #endif
+    }
 
     @State private var name = ""
     @State private var host = ""
@@ -76,7 +86,17 @@ struct ConnectionEditorView: View {
             ScrollView {
                 Form {
                     generalSection
-                    if mode == .ssh { sshSection }
+                    if mode == .ssh {
+                        #if os(macOS)
+                        sshSection
+                        #else
+                        Section("Tunnel SSH") {
+                            Label("Il tunnel SSH è disponibile solo su macOS.",
+                                  systemImage: "exclamationmark.triangle")
+                                .foregroundStyle(.orange)
+                        }
+                        #endif
+                    }
                     if mode == .bridge { bridgeSection }
                     securitySection
                 }
@@ -94,7 +114,7 @@ struct ConnectionEditorView: View {
                 .font(.headline)
             Spacer()
             Picker("", selection: $mode) {
-                ForEach(ConnectionMode.allCases) { m in
+                ForEach(availableModes) { m in
                     Label(m.displayName, systemImage: m.symbolName).tag(m)
                 }
             }
@@ -139,13 +159,16 @@ struct ConnectionEditorView: View {
                 HStack {
                     TextField("Percorso chiave privata", text: $sshKeyPath)
                     Button("Sfoglia…") {
-                        let panel = NSOpenPanel()
-                        panel.allowsMultipleSelection = false
-                        panel.canChooseDirectories = false
-                        panel.allowedContentTypes = [.item]
-                        if panel.runModal() == .OK, let url = panel.url {
-                            sshKeyPath = url.path
-                        }
+                        showKeyImporter = true
+                    }
+                }
+                .fileImporter(
+                    isPresented: $showKeyImporter,
+                    allowedContentTypes: [.item],
+                    allowsMultipleSelection: false
+                ) { result in
+                    if case .success(let urls) = result, let url = urls.first {
+                        sshKeyPath = url.path
                     }
                 }
                 Toggle("La chiave ha una passphrase", isOn: $sshUsePassphrase)
