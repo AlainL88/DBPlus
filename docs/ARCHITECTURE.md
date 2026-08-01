@@ -167,3 +167,11 @@ DB+/
   Bridge/              db_bridge.php + README di deploy
   docs/                ARCHITECTURE, EXPORT_COMPLIANCE, BENCHMARKING
 ```
+
+## Generazione chiavi SSH
+
+L'app genera coppie di chiavi Ed25519 in-app (swift-crypto genera,
+Citadel serializza nel formato OpenSSH `openssh-key-v1`). La chiave
+privata è NON cifrata e vive nella sandbox dell'app
+(`Application Support/SSHKeys/`), non accessibile ad altre app.
+La chiave pubblica va installata nel file `authorized_keys` del server.
