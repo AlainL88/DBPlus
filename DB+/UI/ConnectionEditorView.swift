@@ -79,15 +79,7 @@ struct ConnectionEditorView: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             Divider()
-            ScrollView {
-                Form {
-                    generalSection
-                    if mode == .ssh { sshSection }
-                    if mode == .bridge { bridgeSection }
-                    securitySection
-                }
-                .formStyle(.grouped)
-            }
+            formBody
             Divider()
             footer
         }
@@ -96,20 +88,58 @@ struct ConnectionEditorView: View {
         #endif
     }
 
+    /// Su macOS la `Form` non scrolla da sola: serve un `ScrollView`.
+    /// Su iOS la `Form` è già scrollabile: posta dentro un `ScrollView`
+    /// i campi non vengono renderizzati, quindi va messa direttamente
+    /// nella VStack.
+    @ViewBuilder
+    private var formBody: some View {
+        #if os(macOS)
+        ScrollView {
+            formContent
+        }
+        #else
+        formContent
+        #endif
+    }
+
+    private var formContent: some View {
+        Form {
+            generalSection
+            if mode == .ssh { sshSection }
+            if mode == .bridge { bridgeSection }
+            securitySection
+        }
+        .formStyle(.grouped)
+    }
+
     private var header: some View {
-        HStack {
-            Text(profileID == nil ? "Nuova connessione" : "Modifica connessione")
-                .font(.headline)
-            Spacer()
-            Picker("", selection: $mode) {
-                ForEach(availableModes) { m in
-                    Label(m.displayName, systemImage: m.symbolName).tag(m)
-                }
+        ViewThatFits(in: .horizontal) {
+            // Layout compatto (macOS, schermo largo): titolo e picker in riga.
+            HStack {
+                Text(profileID == nil ? "Nuova connessione" : "Modifica connessione")
+                    .font(.headline)
+                Spacer()
+                modePicker
+                    .frame(maxWidth: 420)
             }
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 420)
+            // Fallback (iPhone): titolo sopra e segmented a tutta larghezza.
+            VStack(alignment: .leading, spacing: 10) {
+                Text(profileID == nil ? "Nuova connessione" : "Modifica connessione")
+                    .font(.headline)
+                modePicker
+            }
         }
         .padding()
+    }
+
+    private var modePicker: some View {
+        Picker("", selection: $mode) {
+            ForEach(availableModes) { m in
+                Label(m.shortDisplayName, systemImage: m.symbolName).tag(m)
+            }
+        }
+        .pickerStyle(.segmented)
     }
 
     private var generalSection: some View {

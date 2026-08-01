@@ -21,6 +21,15 @@ enum ConnectionMode: String, Codable, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// Etichetta compatta per i controlli segmentati (es. la Picker modalità).
+    var shortDisplayName: String {
+        switch self {
+        case .direct: return "Diretta"
+        case .ssh: return "SSH"
+        case .bridge: return "Bridge"
+        }
+    }
+
     var symbolName: String {
         switch self {
         case .direct: return "network"

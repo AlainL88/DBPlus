@@ -30,7 +30,7 @@ struct MainWindowView: View {
         }
         .navigationSplitViewColumnWidth(min: 240, ideal: 280)
         .sheet(isPresented: $showEditor) {
-            ConnectionEditorView(profile: editingProfile ?? .empty()) { updated in
+            ConnectionEditorView(profile: editingProfile) { updated in
                 store.upsert(updated)
                 selectedProfileID = updated.id
                 showEditor = false
