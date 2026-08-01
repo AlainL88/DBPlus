@@ -11,6 +11,7 @@ struct ConnectionEditorView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var showKeyImporter = false
+    @State private var showKeyGenerator = false
 
     /// Modalità disponibili su questa piattaforma (tutte, incluso il tunnel SSH).
     private var availableModes: [ConnectionMode] {
@@ -86,6 +87,12 @@ struct ConnectionEditorView: View {
         #if os(macOS)
         .frame(width: 560, height: 620)
         #endif
+        .sheet(isPresented: $showKeyGenerator) {
+            SSHKeyGeneratorView { url in
+                sshKeyPath = url.path
+                sshUsePassphrase = false
+            }
+        }
     }
 
     /// Su macOS la `Form` non scrolla da sola: serve un `ScrollView`.
@@ -189,6 +196,7 @@ struct ConnectionEditorView: View {
                         importKey(url: url)
                     }
                 }
+                Button("Genera chiave Ed25519…") { showKeyGenerator = true }
                 Toggle("La chiave ha una passphrase", isOn: $sshUsePassphrase)
             }
         }
