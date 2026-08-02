@@ -90,6 +90,20 @@ final class ConnectionSession {
     func testConnection() async -> String {
         isConnecting = true
         defer { isConnecting = false }
+        let startAll = DispatchTime.now()
+
+        DebugLog.shared.log("[DB+DEBUG] testConnection() inizio — mode=\(profile.mode.displayName) host=\(profile.host):\(profile.port) useTLS=\(profile.useTLS) ssh=\(profile.sshHost):\(profile.sshPort) auth=\(profile.sshAuthType.displayName)")
+
+        // Watchdog: se il test resta bloccato, logga ogni 10s finché non finisce.
+        let watchdog = Task {
+            var elapsed = 0
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 10_000_000_000)
+                elapsed += 10
+                DebugLog.shared.log("[DB+DEBUG] ⚠️ watchdog: test ancora in corso dopo \(elapsed)s — probabile blocco in un await")
+            }
+        }
+        defer { watchdog.cancel() }
 
         let testTransport: any DatabaseTransport
         switch profile.mode {
@@ -109,11 +123,20 @@ final class ConnectionSession {
                 hmacSecret: secrets.bridgeHMACSecret
             )
         }
+        DebugLog.shared.log("[DB+DEBUG] testConnection() transport creato: \(type(of: testTransport))")
 
         do {
+            DebugLog.shared.log("[DB+DEBUG] testConnection() connect(): inizio")
             let info = try await testTransport.connect()
+            DebugLog.shared.log("[DB+DEBUG] testConnection() connect(): OK — version=\(info.version) latency=\(info.latencyMS) ms")
+            DebugLog.shared.log("[DB+DEBUG] testConnection() pingLatency(): inizio")
             let latency = try await testTransport.pingLatency()
+            DebugLog.shared.log("[DB+DEBUG] testConnection() pingLatency(): OK — \(latency) ms")
+            DebugLog.shared.log("[DB+DEBUG] testConnection() close(): inizio")
             await testTransport.close()
+            DebugLog.shared.log("[DB+DEBUG] testConnection() close(): OK")
+            let totalMS = Double(DispatchTime.now().uptimeNanoseconds - startAll.uptimeNanoseconds) / 1_000_000
+            DebugLog.shared.log("[DB+DEBUG] testConnection() FINE OK — totale \(totalMS) ms")
             return String(
                 format: "OK — %@ · versione %@ · latenza handshake %.2f ms · ping %.2f ms",
                 profile.mode.displayName,
@@ -122,7 +145,9 @@ final class ConnectionSession {
                 latency
             )
         } catch {
+            DebugLog.shared.log("[DB+DEBUG] testConnection() ERRORE: \(error.localizedDescription)")
             await testTransport.close()
+            DebugLog.shared.log("[DB+DEBUG] testConnection() close() dopo errore: OK")
             return "Errore: \(error.localizedDescription)"
         }
     }

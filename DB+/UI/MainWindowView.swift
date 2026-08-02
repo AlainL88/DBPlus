@@ -10,6 +10,8 @@ struct MainWindowView: View {
     @State private var activeSession: ConnectionSession?
     @State private var selectedProfileID: UUID?
     @State private var showEditor = false
+    @State private var showDebugLog = false
+    @State private var debugLog = DebugLog.shared
     @State private var editingProfile: ConnectionProfile?
     @State private var testResult: String?
     @State private var isTesting = false
@@ -35,6 +37,9 @@ struct MainWindowView: View {
                 selectedProfileID = updated.id
                 showEditor = false
             }
+        }
+        .sheet(isPresented: $showDebugLog) {
+            DebugLogView(log: debugLog)
         }
     }
 
@@ -87,6 +92,12 @@ struct MainWindowView: View {
                     }
                     .buttonStyle(.borderless)
                     Spacer()
+                    Button {
+                        showDebugLog = true
+                    } label: {
+                        Label("Log", systemImage: "ladybug")
+                    }
+                    .buttonStyle(.borderless)
                 }
                 .padding(.horizontal, 8)
                 .padding(.bottom, 6)
@@ -173,8 +184,10 @@ struct MainWindowView: View {
         guard let profile else { return }
         isTesting = true
         testResult = "Test in corso…"
+        DebugLog.shared.log("[DB+DEBUG] test() inizio — mode=\(profile.mode.displayName) host=\(profile.host):\(profile.port) useTLS=\(profile.useTLS) ssh=\(profile.sshHost):\(profile.sshPort) auth=\(profile.sshAuthType.displayName)")
         Task {
             let result = await ConnectionSession(profile: profile).testConnection()
+            DebugLog.shared.log("[DB+DEBUG] test() fine — risultato: \(result.prefix(200))")
             testResult = result
             isTesting = false
         }

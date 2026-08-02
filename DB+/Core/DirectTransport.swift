@@ -10,6 +10,7 @@
 import Foundation
 import MySQLNIO
 import NIOSSL
+import NIOPosix
 
 final class DirectTransport: DatabaseTransport {
     let mode: ConnectionMode = .direct
@@ -42,20 +43,30 @@ final class DirectTransport: DatabaseTransport {
     func connect() async throws -> ServerInfo {
         let start = DispatchTime.now()
         let host = profile.host.isEmpty ? "localhost" : profile.host
+        DebugLog.shared.log("[DB+DEBUG] DirectTransport.connect() host=\(host):\(profile.port) useTLS=\(profile.useTLS)")
 
-        let connection = try await MySQLConnection.connect(
-            to: .makeAddressResolvingHost(host, port: profile.port),
-            username: profile.username,
-            database: profile.defaultSchema,
-            password: password,
-            tlsConfiguration: tlsConfiguration,
-            on: group.next()
-        ).get()
+        let connection: MySQLConnection
+        do {
+            DebugLog.shared.log("[DB+DEBUG]   -> MySQLConnection.connect: inizio")
+            connection = try await MySQLConnection.connect(
+                to: .makeAddressResolvingHost(host, port: profile.port),
+                username: profile.username,
+                database: profile.defaultSchema,
+                password: password,
+                tlsConfiguration: tlsConfiguration,
+                on: group.next()
+            ).get()
+            DebugLog.shared.log("[DB+DEBUG]   -> MySQLConnection.connect: OK")
+        } catch {
+            DebugLog.shared.log("[DB+DEBUG]   -> MySQLConnection.connect ERRORE: \(error.localizedDescription)")
+            throw DBError.invalid(Self.describeConnectionFailure(error, host: host, port: profile.port))
+        }
 
         self.conn = connection
         self.isConnected = true
 
         var version = "Sconosciuta"
+        DebugLog.shared.log("[DB+DEBUG]   -> SELECT VERSION(): inizio")
         do {
             let rows = try await connection.simpleQuery("SELECT VERSION() AS v").get()
             if let v = rows.first?.column("v")?.string {
@@ -64,9 +75,53 @@ final class DirectTransport: DatabaseTransport {
         } catch {
             // Versione non determinabile: non è bloccante.
         }
+        DebugLog.shared.log("[DB+DEBUG]   -> SELECT VERSION(): version=\(version)")
 
         let latency = Self.elapsedMS(from: start)
         return ServerInfo(version: version, host: host, latencyMS: latency, transportMode: .direct)
+    }
+
+    /// Traduce un errore di connessione NIO/POSIX in un messaggio chiaro per l'utente.
+    private static func describeConnectionFailure(_ error: Error, host: String, port: Int) -> String {
+        let target = "\(host):\(port)"
+        if let nioError = error as? NIOConnectionError {
+            if nioError.dnsAError != nil || nioError.dnsAAAAError != nil {
+                return "Host \(target) non risolvibile: controlla il nome host e la rete."
+            }
+            for failure in nioError.connectionErrors {
+                if let reason = describePOSIX(failure.error, target: target) {
+                    return reason
+                }
+            }
+            return "Impossibile raggiungere \(target): \(nioError.localizedDescription)"
+        }
+        if let reason = describePOSIX(error, target: target) {
+            return reason
+        }
+        return "Impossibile raggiungere \(target): \(error.localizedDescription)"
+    }
+
+    private static func describePOSIX(_ error: Error, target: String) -> String? {
+        let code: Int32?
+        if let io = error as? IOError {
+            code = io.errnoCode
+        } else {
+            let nsError = error as NSError
+            code = nsError.domain == NSPOSIXErrorDomain ? Int32(nsError.code) : nil
+        }
+        guard let code else { return nil }
+        switch code {
+        case ECONNREFUSED:
+            return "Connessione rifiutata su \(target) — porta chiusa o servizio non attivo. Verifica la porta e che il server MySQL/MariaDB sia in esecuzione."
+        case ETIMEDOUT:
+            return "Timeout su \(target) — host irraggiungibile. Verifica rete, firewall e indirizzo."
+        case EHOSTUNREACH:
+            return "Host \(target) irraggiungibile (nessuna rotta di rete)."
+        case ENETUNREACH:
+            return "Rete non raggiungibile verso \(target)."
+        default:
+            return nil
+        }
     }
 
     func close() async {
@@ -80,8 +135,11 @@ final class DirectTransport: DatabaseTransport {
 
     func pingLatency() async throws -> Double {
         let start = DispatchTime.now()
+        DebugLog.shared.log("[DB+DEBUG] DirectTransport.pingLatency() SELECT 1: inizio")
         _ = try await requireConnection().simpleQuery("SELECT 1").get()
-        return Self.elapsedMS(from: start)
+        let ms = Self.elapsedMS(from: start)
+        DebugLog.shared.log("[DB+DEBUG] DirectTransport.pingLatency() OK: \(ms) ms")
+        return ms
     }
 
     private func requireConnection() throws -> MySQLConnection {

@@ -85,6 +85,7 @@ final class SSHProcessTunnel: SSHTunnel {
         process.terminationHandler = { [weak self] proc in
             self?.stderrBuffer.append("(ssh terminato, codice \(proc.terminationStatus))")
         }
+        DebugLog.shared.log("[DB+DEBUG] SSHProcessTunnel: /usr/bin/ssh avviato — attendo la porta locale \(localPort)…")
 
         // Attende che la porta locale accetti connessioni.
         let deadline = Date().addingTimeInterval(timeout)
@@ -93,6 +94,7 @@ final class SSHProcessTunnel: SSHTunnel {
                 break
             }
             if Self.canConnect(host: "127.0.0.1", port: localPort, timeout: 0.2) {
+                DebugLog.shared.log("[DB+DEBUG] SSHProcessTunnel: porta locale \(localPort) pronta")
                 return localPort
             }
             try await Task.sleep(nanoseconds: 200_000_000)
@@ -100,6 +102,7 @@ final class SSHProcessTunnel: SSHTunnel {
 
         let isUp = process.isRunning
         let stderr = stderrBuffer.drain()
+        DebugLog.shared.log("[DB+DEBUG] SSHProcessTunnel: FALLITO — isUp=\(isUp) stderr=\(stderr.isEmpty ? "(vuoto)" : stderr)")
         await teardown()
 
         if isUp && !stderr.isEmpty {

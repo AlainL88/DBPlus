@@ -46,7 +46,10 @@ final class BridgeTransport: DatabaseTransport {
 
     func connect() async throws -> ServerInfo {
         let start = DispatchTime.now()
+        DebugLog.shared.log("[DB+DEBUG] BridgeTransport.connect() url=\(profile.bridgeURL)")
+        DebugLog.shared.log("[DB+DEBUG]   -> post(ping): inizio")
         let response = try await post(action: "ping")
+        DebugLog.shared.log("[DB+DEBUG]   -> post(ping): OK — ok=\(response.ok)")
         let latency = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000
 
         guard response.ok else {
@@ -69,7 +72,9 @@ final class BridgeTransport: DatabaseTransport {
 
     func pingLatency() async throws -> Double {
         let start = DispatchTime.now()
+        DebugLog.shared.log("[DB+DEBUG] BridgeTransport.pingLatency() post(ping): inizio")
         let response = try await post(action: "ping")
+        DebugLog.shared.log("[DB+DEBUG] BridgeTransport.pingLatency() OK")
         guard response.ok else {
             throw DBError.invalid(response.error ?? "Ping fallito")
         }

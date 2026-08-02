@@ -35,7 +35,10 @@ final class SSHTransport: DatabaseTransport {
 
     func connect() async throws -> ServerInfo {
         let start = DispatchTime.now()
+        DebugLog.shared.log("[DB+DEBUG] SSHTransport.connect() sshHost=\(profile.sshHost):\(profile.sshPort) user=\(profile.sshUsername) auth=\(profile.sshAuthType.displayName)")
+        DebugLog.shared.log("[DB+DEBUG]   -> tunnel.start(): inizio")
         let localPort = try await tunnel.start(profile: profile, password: sshPassword, passphrase: sshPassphrase, timeout: 30)
+        DebugLog.shared.log("[DB+DEBUG]   -> tunnel.start(): OK — porta locale=\(localPort)")
 
         var localProfile = profile
         localProfile.host = "127.0.0.1"
@@ -45,11 +48,14 @@ final class SSHTransport: DatabaseTransport {
         self.inner = inner
 
         do {
+            DebugLog.shared.log("[DB+DEBUG]   -> DirectTransport inner (127.0.0.1:\(localPort)): inizio")
             let info = try await inner.connect()
+            DebugLog.shared.log("[DB+DEBUG]   -> DirectTransport inner: OK — version=\(info.version)")
             self.isConnected = true
             let latency = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000
             return ServerInfo(version: info.version, host: profile.sshHost, latencyMS: latency, transportMode: .ssh)
         } catch {
+            DebugLog.shared.log("[DB+DEBUG]   -> DirectTransport inner ERRORE: \(error.localizedDescription)")
             await tunnel.teardown()
             self.inner = nil
             throw error

@@ -46,6 +46,7 @@ final class SSHInProcessTunnel: SSHTunnel {
 
         let client: SSHClient
         do {
+            DebugLog.shared.log("[DB+DEBUG] SSHInProcessTunnel: SSHClient.connect inizio — host=\(sshHost):\(profile.sshPort) user=\(username)")
             client = try await SSHClient.connect(
                 host: sshHost,
                 port: profile.sshPort,
@@ -55,7 +56,9 @@ final class SSHInProcessTunnel: SSHTunnel {
                 group: group,
                 connectTimeout: .seconds(Int64(timeout))
             )
+            DebugLog.shared.log("[DB+DEBUG] SSHInProcessTunnel: SSHClient.connect OK")
         } catch {
+            DebugLog.shared.log("[DB+DEBUG] SSHInProcessTunnel: SSHClient.connect ERRORE: \(error.localizedDescription)")
             self.group = nil
             try? group.syncShutdownGracefully()
             throw DBError.invalid("Connessione SSH non riuscita: \(error.localizedDescription)")
@@ -73,8 +76,11 @@ final class SSHInProcessTunnel: SSHTunnel {
 
         let bound: Channel
         do {
+            DebugLog.shared.log("[DB+DEBUG] SSHInProcessTunnel: bind listener locale: inizio")
             bound = try await bootstrap.bind(host: "127.0.0.1", port: 0).get()
+            DebugLog.shared.log("[DB+DEBUG] SSHInProcessTunnel: bind listener locale OK")
         } catch {
+            DebugLog.shared.log("[DB+DEBUG] SSHInProcessTunnel: bind listener ERRORE: \(error.localizedDescription)")
             await teardown()
             throw DBError.invalid("Impossibile aprire il listener locale del tunnel: \(error.localizedDescription)")
         }
@@ -84,6 +90,7 @@ final class SSHInProcessTunnel: SSHTunnel {
             await teardown()
             throw DBError.invalid("Impossibile determinare la porta locale del tunnel.")
         }
+        DebugLog.shared.log("[DB+DEBUG] SSHInProcessTunnel: listener pronto — porta locale \(localPort)")
         return localPort
     }
 
