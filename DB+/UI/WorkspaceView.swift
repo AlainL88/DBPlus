@@ -43,13 +43,13 @@ struct WorkspaceView: View {
                 }
             }
             .sheet(isPresented: $showQueryConsole) {
-                QueryConsoleView(session: session, defaultSchema: selectedSchema ?? session.profile.defaultSchema)
+                QueryConsoleView(session: session, defaultSchema: activeSchema)
                     #if os(macOS)
                     .frame(minWidth: 900, minHeight: 620)
                     #endif
             }
             .sheet(isPresented: $showBenchmark) {
-                BenchmarkView(session: session, defaultSchema: selectedSchema ?? session.profile.defaultSchema)
+                BenchmarkView(session: session, defaultSchema: activeSchema)
                     #if os(macOS)
                     .frame(minWidth: 860, minHeight: 560)
                     #endif
@@ -68,6 +68,14 @@ struct WorkspaceView: View {
             } message: {
                 Text("Il server non risponde. Tornerai alla lista delle connessioni.")
             }
+    }
+
+    /// Schema attivo: la selezione corrente, oppure lo schema del nodo
+    /// selezionato (tabella/vista), altrimenti il default del profilo.
+    private var activeSchema: String {
+        if let selectedSchema { return selectedSchema }
+        if let schema = selectedObject?.schemaName { return schema }
+        return session.profile.defaultSchema
     }
 
     /// Tenta di riconnettere dopo una perdita di connessione; se fallisce,
@@ -128,9 +136,9 @@ struct WorkspaceView: View {
     private func detailView(for object: SchemaNode) -> some View {
         switch object.kind {
         case .table:
-            TableDetailView(session: session, schema: selectedSchema ?? "", node: object)
+            TableDetailView(session: session, schema: object.schemaName ?? "", node: object)
         case .view:
-            TableDetailView(session: session, schema: selectedSchema ?? "", node: object, isView: true)
+            TableDetailView(session: session, schema: object.schemaName ?? "", node: object, isView: true)
         case .database:
             DatabaseDetailView(schema: object.displayName)
         default:

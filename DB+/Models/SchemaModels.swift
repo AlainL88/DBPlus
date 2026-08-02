@@ -25,24 +25,33 @@ enum DatabaseObjectKind: String, Sendable {
 /// Nodo dell'albero di navigazione.
 enum SchemaNode: Identifiable, Hashable, Sendable {
     case schema(String)
-    case table(String)
-    case view(String)
+    case table(String, schema: String)
+    case view(String, schema: String)
     case routine(String, kind: String)
 
     var id: String {
         switch self {
         case .schema(let s): return "schema.\(s)"
-        case .table(let t): return "table.\(t)"
-        case .view(let v): return "view.\(v)"
+        case .table(let t, let s): return "table.\(s).\(t)"
+        case .view(let v, let s): return "view.\(s).\(v)"
         case .routine(let r, let k): return "routine.\(k).\(r)"
+        }
+    }
+
+    /// Schema di appartenenza (per table/view).
+    var schemaName: String? {
+        switch self {
+        case .table(_, let s): return s
+        case .view(_, let s): return s
+        default: return nil
         }
     }
 
     var displayName: String {
         switch self {
         case .schema(let s): return s
-        case .table(let t): return t
-        case .view(let v): return v
+        case .table(let t, _): return t
+        case .view(let v, _): return v
         case .routine(let r, _): return r
         }
     }
