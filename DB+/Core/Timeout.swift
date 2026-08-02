@@ -17,20 +17,42 @@ struct TimeoutError: LocalizedError {
 
 enum Timeout {
     /// Esegue `operation` e, se non termina entro `seconds`, lancia `TimeoutError`.
+    ///
+    /// Il timeout è implementato con un timer su coda globale (DispatchQueue),
+    /// indipendente dall'actor/executor corrente: scatta anche se l'operazione
+    /// non cede mai il controllo (il pattern con `Task.sleep` in un task group
+    /// può non scattare quando l'operazione blocca l'actor).
     static func withTimeout<T>(
         _ seconds: TimeInterval,
         operation: @escaping () async throws -> T
     ) async throws -> T {
-        try await withThrowingTaskGroup(of: T.self) { group in
-            group.addTask { try await operation() }
-            group.addTask {
-                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-                throw TimeoutError(seconds: seconds)
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<T, Error>) in
+            let lock = NSLock()
+            var finished = false
+
+            func finish(_ result: Result<T, Error>) {
+                lock.lock()
+                guard !finished else { lock.unlock(); return }
+                finished = true
+                lock.unlock()
+                continuation.resume(with: result)
             }
-            let result = try await group.next()
-            group.cancelAll()
-            guard let result else { throw CancellationError() }
-            return result
+
+            let timer = DispatchWorkItem {
+                finish(.failure(TimeoutError(seconds: seconds)))
+            }
+            DispatchQueue.global().asyncAfter(deadline: .now() + seconds, execute: timer)
+
+            Task {
+                do {
+                    let value = try await operation()
+                    timer.cancel()
+                    finish(.success(value))
+                } catch {
+                    timer.cancel()
+                    finish(.failure(error))
+                }
+            }
         }
     }
 }

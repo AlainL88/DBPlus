@@ -189,7 +189,7 @@ struct MainWindowView: View {
     }
 
     private func test(_ profile: ConnectionProfile?) {
-        guard let profile else { return }
+        guard let profile, !isTesting else { return }
         isTesting = true
         testResult = "Test in corso…"
         DebugLog.shared.log("[DB+DEBUG] test() inizio — mode=\(profile.mode.displayName) host=\(profile.host):\(profile.port) useTLS=\(profile.useTLS) ssh=\(profile.sshHost):\(profile.sshPort) auth=\(profile.sshAuthType.displayName)")
