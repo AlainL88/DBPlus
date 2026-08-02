@@ -132,8 +132,13 @@ final class SSHInProcessTunnel: SSHTunnel {
             guard !profile.sshKeyPath.isEmpty else {
                 throw DBError.invalid("Nessuna chiave privata selezionata.")
             }
-            let url = URL(fileURLWithPath: profile.sshKeyPath)
-            DebugLog.shared.log("[DB+DEBUG] makeAuthentication: sshKeyPath=\(profile.sshKeyPath)")
+            let stored = profile.sshKeyPath
+            let resolved = SSHKeyGenerator.resolvedKeyPath(stored)
+            let url = URL(fileURLWithPath: resolved)
+            DebugLog.shared.log("[DB+DEBUG] makeAuthentication: sshKeyPath(archiviato)=\(stored)")
+            if resolved != stored {
+                DebugLog.shared.log("[DB+DEBUG] makeAuthentication: percorso stantio → risolto a \(resolved)")
+            }
             DebugLog.shared.log("[DB+DEBUG] makeAuthentication: file esiste=\(FileManager.default.fileExists(atPath: url.path)) leggibile=\(FileManager.default.isReadableFile(atPath: url.path))")
             guard let content = try? String(contentsOf: url, encoding: .utf8) else {
                 DebugLog.shared.log("[DB+DEBUG] makeAuthentication: lettura chiave FALLITA — \(url.path)")

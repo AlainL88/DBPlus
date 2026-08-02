@@ -80,6 +80,29 @@ enum SSHKeyGenerator {
         return dir
     }
 
+    /// Risolve il percorso di una chiave salvata che potrebbe essere diventato
+    /// stantio: il percorso assoluto salvato nel profilo punta al container
+    /// iOS di prima (es. dopo un ripristino da backup l'UUID del container
+    /// cambia ma i file vengono ripristinati). Se il file al percorso salvato
+    /// non esiste, cerca un file con lo stesso nome nella cartella `SSHKeys`
+    /// attuale; se non lo trova, restituisce il percorso originale.
+    static func resolvedKeyPath(_ storedPath: String) -> String {
+        guard !storedPath.isEmpty else { return storedPath }
+        let fm = FileManager.default
+        if fm.fileExists(atPath: storedPath) {
+            return storedPath
+        }
+        let name = URL(fileURLWithPath: storedPath).lastPathComponent
+        guard !name.isEmpty else { return storedPath }
+        if let dir = try? keysDirectory() {
+            let candidate = dir.appendingPathComponent(name)
+            if fm.fileExists(atPath: candidate.path) {
+                return candidate.path
+            }
+        }
+        return storedPath
+    }
+
     /// Primo percorso libero: `<name>`, altrimenti `<name>-2`, `<name>-3`, …
     private static func uniqueFileURL(in dir: URL, baseName: String) throws -> URL {
         let fm = FileManager.default

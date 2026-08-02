@@ -54,7 +54,7 @@ final class SSHProcessTunnel: SSHTunnel {
             needsSecret = true
         case .privateKey:
             if !profile.sshKeyPath.isEmpty {
-                args.append(contentsOf: ["-i", profile.sshKeyPath])
+                args.append(contentsOf: ["-i", SSHKeyGenerator.resolvedKeyPath(profile.sshKeyPath)])
             }
             needsSecret = profile.sshUsePassphrase
         }
