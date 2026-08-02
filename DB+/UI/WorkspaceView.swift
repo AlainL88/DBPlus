@@ -13,6 +13,8 @@ struct WorkspaceView: View {
     @State private var selectedObject: SchemaNode?
     @State private var showQueryConsole = false
     @State private var showBenchmark = false
+    @State private var showConnectionLost = false
+    @State private var showRetryFailed = false
 
     var body: some View {
         content
@@ -52,6 +54,31 @@ struct WorkspaceView: View {
                     .frame(minWidth: 860, minHeight: 560)
                     #endif
             }
+            .onChange(of: session.connectionLost) { _, lost in
+                if lost { showConnectionLost = true }
+            }
+            .alert("Connessione persa", isPresented: $showConnectionLost) {
+                Button("Riprova") { Task { await retryConnection() } }
+                Button("Torna indietro", role: .cancel) { onDisconnect() }
+            } message: {
+                Text("La connessione al server è scaduta. Riprova oppure torna alla lista delle connessioni.")
+            }
+            .alert("Impossibile riconnettere", isPresented: $showRetryFailed) {
+                Button("OK") { onDisconnect() }
+            } message: {
+                Text("Il server non risponde. Tornerai alla lista delle connessioni.")
+            }
+    }
+
+    /// Tenta di riconnettere dopo una perdita di connessione; se fallisce,
+    /// mostra un secondo avviso e torna indietro.
+    private func retryConnection() async {
+        await session.disconnect()
+        session.connectionLost = false
+        await session.connect()
+        if session.errorMessage != nil {
+            showRetryFailed = true
+        }
     }
 
     /// Su iOS (compact) una NavigationSplitView annidata dentro l'altra non

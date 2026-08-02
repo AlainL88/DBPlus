@@ -25,6 +25,7 @@ struct ConnectionEditorView: View {
     @State private var defaultSchema = ""
     @State private var useTLS = true
     @State private var allowSelfSignedTLS = false
+    @State private var keepAlive = true
     @State private var mode: ConnectionMode = .direct
 
     // SSH
@@ -58,6 +59,7 @@ struct ConnectionEditorView: View {
         _defaultSchema = State(initialValue: profile?.defaultSchema ?? "")
         _useTLS = State(initialValue: profile?.useTLS ?? true)
         _allowSelfSignedTLS = State(initialValue: profile?.allowSelfSignedTLS ?? false)
+        _keepAlive = State(initialValue: profile?.keepAlive ?? true)
         _mode = State(initialValue: profile?.mode ?? .direct)
         _sshHost = State(initialValue: profile?.sshHost ?? "")
         _sshPort = State(initialValue: String(profile?.sshPort ?? 22))
@@ -163,6 +165,7 @@ struct ConnectionEditorView: View {
             if useTLS {
                 Toggle("Accetta certificato self-signed", isOn: $allowSelfSignedTLS)
             }
+            Toggle("Mantieni attiva (keep-alive)", isOn: $keepAlive)
         }
     }
 
@@ -279,6 +282,7 @@ struct ConnectionEditorView: View {
         profile.defaultSchema = defaultSchema
         profile.useTLS = useTLS
         profile.allowSelfSignedTLS = allowSelfSignedTLS
+        profile.keepAlive = keepAlive
         profile.mode = mode
         profile.sshHost = sshHost
         profile.sshPort = Int(sshPort) ?? 22

@@ -63,6 +63,8 @@ struct ConnectionProfile: Identifiable, Codable, Equatable, Sendable {
     // Generali
     var name: String = ""
     var color: String = "blue"
+    /// Mantiene attiva la connessione con ping periodici (keep-alive).
+    var keepAlive: Bool = true
 
     // Endpoint MySQL/MariaDB
     var host: String = ""

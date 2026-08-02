@@ -290,7 +290,7 @@ private struct BridgeSchemaHelper {
 
         let colRows = try await rows(sql: """
             SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT,
-                   EXTRA, COLLATION_NAME, COLUMN_KEY, COLUMN_POSITION
+                   EXTRA, COLLATION_NAME, COLUMN_KEY, ORDINAL_POSITION
             FROM information_schema.COLUMNS
             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
             ORDER BY ORDINAL_POSITION

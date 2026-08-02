@@ -17,6 +17,10 @@ final class ConnectionSession {
     var errorMessage: String?
     var statusMessage: String?
     var isConnecting = false
+    /// Vero quando la connessione è stata persa (server, background, rete).
+    var connectionLost = false
+    private var keepAliveTask: Task<Void, Never>?
+    private let keepAliveInterval: TimeInterval = 30
 
     private struct Secrets {
         var databasePassword: String?
@@ -45,6 +49,7 @@ final class ConnectionSession {
         isConnecting = true
         errorMessage = nil
         statusMessage = nil
+        connectionLost = false
         defer { isConnecting = false }
 
         await disconnect()
@@ -73,6 +78,9 @@ final class ConnectionSession {
             transport = newTransport
             serverInfo = info
             statusMessage = "Connesso a \(info.host) · \(info.version)"
+            if profile.keepAlive {
+                startKeepAlive()
+            }
         } catch {
             errorMessage = error.localizedDescription
             await newTransport.close()
@@ -80,10 +88,12 @@ final class ConnectionSession {
     }
 
     func disconnect() async {
+        stopKeepAlive()
         await transport?.close()
         transport = nil
         serverInfo = nil
         statusMessage = nil
+        connectionLost = false
     }
 
     /// Test di connessione con feedback dettagliato (latenza, versione, modalità).
@@ -150,6 +160,33 @@ final class ConnectionSession {
             DebugLog.shared.log("[DB+DEBUG] testConnection() close() dopo errore: OK")
             return "Errore: \(error.localizedDescription)"
         }
+    }
+
+    // MARK: - Keep-alive
+
+    /// Esegue un ping periodico per mantenere attiva la connessione.
+    /// Se un ping fallisce, segnala la perdita della connessione.
+    private func startKeepAlive() {
+        stopKeepAlive()
+        let interval = keepAliveInterval
+        keepAliveTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+                guard !Task.isCancelled, let self else { return }
+                guard let transport = self.transport, transport.isConnected else { return }
+                do {
+                    try await transport.pingLatency()
+                } catch {
+                    self.connectionLost = true
+                    self.stopKeepAlive()
+                }
+            }
+        }
+    }
+
+    private func stopKeepAlive() {
+        keepAliveTask?.cancel()
+        keepAliveTask = nil
     }
 
     // MARK: - Helpers
