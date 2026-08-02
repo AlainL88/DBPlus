@@ -10,6 +10,12 @@ import SwiftUI
 
 struct QueryConsoleView: View {
     let session: ConnectionSession
+    let defaultSchema: String
+
+    init(session: ConnectionSession, defaultSchema: String = "") {
+        self.session = session
+        self.defaultSchema = defaultSchema
+    }
 
     @State private var sql = ""
     @State private var results: [StatementResult] = []
@@ -230,7 +236,17 @@ struct QueryConsoleView: View {
 
         let start = DispatchTime.now()
         do {
-            let runner = QueryRunner(transport: try session.requireTransport())
+            let transport = try session.requireTransport()
+            // Seleziona lo schema (se noto) prima di eseguire: senza database
+            // attivo le query falliscono con "nessun database selezionato".
+            var activeSchema = defaultSchema
+            if activeSchema.isEmpty {
+                activeSchema = (try? await transport.listSchemas())?.first ?? ""
+            }
+            if !activeSchema.isEmpty {
+                try await transport.useSchema(activeSchema)
+            }
+            let runner = QueryRunner(transport: transport)
             results = try await runner.runScript(sql, rowLimit: rowLimit) { _ in }
             let total = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000
             statusText = String(format: "Tempo totale: %.2f ms", total)

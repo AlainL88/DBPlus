@@ -23,7 +23,7 @@ enum DatabaseObjectKind: String, Sendable {
 }
 
 /// Nodo dell'albero di navigazione.
-enum SchemaNode: Identifiable, Sendable {
+enum SchemaNode: Identifiable, Hashable, Sendable {
     case schema(String)
     case table(String)
     case view(String)

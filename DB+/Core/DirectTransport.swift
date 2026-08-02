@@ -47,8 +47,8 @@ final class DirectTransport: DatabaseTransport {
 
         let connection: MySQLConnection
         do {
-            DebugLog.shared.log("[DB+DEBUG]   -> MySQLConnection.connect: inizio (timeout 15s)")
-            connection = try await Timeout.withTimeout(15) {
+            DebugLog.shared.log("[DB+DEBUG]   -> MySQLConnection.connect: inizio (timeout 30s)")
+            connection = try await Timeout.withTimeout(30) {
                 try await MySQLConnection.connect(
                     to: .makeAddressResolvingHost(host, port: self.profile.port),
                     username: self.profile.username,
