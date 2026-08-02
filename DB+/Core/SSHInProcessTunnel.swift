@@ -191,6 +191,7 @@ final class SSHInProcessTunnel: SSHTunnel {
         guard let originator = inbound.remoteAddress else {
             return inbound.eventLoop.makeFailedFuture(DBError.invalid("Connessione locale senza indirizzo remoto."))
         }
+        DebugLog.shared.log("[DB+DEBUG] tunnel.forward: connessione locale accettata da \(originator) — target \(dbHost):\(dbPort)")
         let promise = inbound.eventLoop.makePromise(of: Void.self)
 
         Task {
@@ -200,14 +201,20 @@ final class SSHInProcessTunnel: SSHTunnel {
                     targetPort: dbPort,
                     originatorAddress: originator
                 )
+                DebugLog.shared.log("[DB+DEBUG] tunnel.forward: apertura direct-tcpip \(dbHost):\(dbPort)…")
                 _ = try await client.createDirectTCPIPChannel(using: settings) { sshChannel in
                     let (ours, theirs) = GlueHandler.matchedPair()
                     return sshChannel.pipeline.addHandlers([ours])
                         .flatMap { inbound.pipeline.addHandlers([theirs]) }
-                        .map { inbound.read() }
+                        .map {
+                            DebugLog.shared.log("[DB+DEBUG] tunnel.forward: glue installato, primo read sul canale locale")
+                            return inbound.read()
+                        }
                 }
+                DebugLog.shared.log("[DB+DEBUG] tunnel.forward: direct-tcpip aperto OK")
                 promise.succeed(())
             } catch {
+                DebugLog.shared.log("[DB+DEBUG] tunnel.forward: direct-tcpip ERRORE — \(error.localizedDescription)")
                 promise.fail(error)
             }
         }
