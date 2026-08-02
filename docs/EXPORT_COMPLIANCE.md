@@ -99,14 +99,28 @@ Sulla piattaforma iOS/iPadOS:
 - l'**App Sandbox è sempre attiva** (imposta dal sistema);
 - il **tunnel SSH usa un client in-process** (Citadel su SwiftNIO +
   swift-crypto) invece di `/usr/bin/ssh`: nessun processo figlio, quindi
-  il vincolo sul lancio di processi non si applica; la chiave privata
-  importata viene copiata nella sandbox dell'app (Application Support);
+  il vincolo sul lancio di processi non si applica; le chiavi private
+  (importate o generate) sono salvate in `Documents/SSHKeys`,
+  raggiungibili da Finder via file sharing (`UIFileSharingEnabled`);
 - il resto del trasporto (diretta, bridge HTTPS) opera entro i
   permessi di rete standard;
 - per l'**App Store** vale la stessa dichiarazione di esportazione
   della sezione 3 (`ITSAppUsesNonExemptEncryption = false`): la
   crittografia usata (TLS, SSH, HMAC-SHA256, AES del Keychain) è
   esente ai sensi della categoria 5.
+
+## 5.1 Firebase Crashlytics
+
+L'app integra **Firebase Crashlytics** per il report dei crash:
+
+- la comunicazione con i servizi Google avviene su **HTTPS (TLS 1.2/1.3)**
+  — crittografia standard, esente ai sensi della categoria 5;
+- **non** introduce crittografia non esente: il flag
+  `ITSAppUsesNonExemptEncryption` resta **`false`**;
+- per l'**App Privacy** di App Store Connect va dichiarata la raccolta di
+  **diagnostica (crash data)** da parte del provider Firebase;
+- la raccolta può essere disattivata a runtime con
+  `Crashlytics.setCrashlyticsCollectionEnabled(false)`.
 
 ## 5. Best practice di sicurezza correlate
 

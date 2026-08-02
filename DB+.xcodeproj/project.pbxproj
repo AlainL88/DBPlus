@@ -9,6 +9,9 @@
 /* Begin PBXBuildFile section */
 		B5FE6A47301E4D7B00676AB6 /* MySQLNIO in Frameworks */ = {isa = PBXBuildFile; productRef = B5D0B0000000000000000002 /* MySQLNIO */; };
 		B5FE6A48301E4D7B00676AB6 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = B5D0B0000000000000000003 /* Citadel */; };
+		B5FE6A49301E4D7B00676AB6 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = B5D0B0000000000000000008 /* FirebaseAnalytics */; };
+		B5FE6A4A301E4D7B00676AB6 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = B5D0B0000000000000000006 /* FirebaseCore */; };
+		B5FE6A4B301E4D7B00676AB6 /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = B5D0B0000000000000000007 /* FirebaseCrashlytics */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -30,6 +33,9 @@
 			files = (
 				B5FE6A48301E4D7B00676AB6 /* Citadel in Frameworks */,
 				B5FE6A47301E4D7B00676AB6 /* MySQLNIO in Frameworks */,
+				B5FE6A49301E4D7B00676AB6 /* FirebaseAnalytics in Frameworks */,
+				B5FE6A4A301E4D7B00676AB6 /* FirebaseCore in Frameworks */,
+				B5FE6A4B301E4D7B00676AB6 /* FirebaseCrashlytics in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -74,6 +80,9 @@
 			packageProductDependencies = (
 				B5D0B0000000000000000002 /* MySQLNIO */,
 				B5D0B0000000000000000003 /* Citadel */,
+				B5D0B0000000000000000006 /* FirebaseCore */,
+				B5D0B0000000000000000007 /* FirebaseCrashlytics */,
+				B5D0B0000000000000000008 /* FirebaseAnalytics */,
 			);
 			productName = "DB+";
 			productReference = B514E783301E34E800CBC0F2 /* DB+.app */;
@@ -106,6 +115,7 @@
 			packageReferences = (
 				B5D0B0000000000000000001 /* XCRemoteSwiftPackageReference "mysql-nio" */,
 				B5D0B0000000000000000004 /* XCRemoteSwiftPackageReference "Citadel" */,
+				B5D0B0000000000000000005 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B514E784301E34E800CBC0F2 /* Products */;
@@ -280,6 +290,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=iphoneos*]" = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=iphonesimulator*]" = "@executable_path/Frameworks";
+				OTHER_LDFLAGS = ("$(inherited)", "-ObjC");
 				MACOSX_DEPLOYMENT_TARGET = 26.5;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.alain.DB-";
@@ -320,6 +331,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=iphoneos*]" = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=iphonesimulator*]" = "@executable_path/Frameworks";
+				OTHER_LDFLAGS = ("$(inherited)", "-ObjC");
 				MACOSX_DEPLOYMENT_TARGET = 26.5;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.alain.DB-";
@@ -374,6 +386,14 @@
 				minimumVersion = 0.12.0;
 			};
 		};
+		B5D0B0000000000000000005 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 11.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -386,6 +406,21 @@
 			isa = XCSwiftPackageProductDependency;
 			package = B5D0B0000000000000000004 /* XCRemoteSwiftPackageReference "Citadel" */;
 			productName = Citadel;
+		};
+		B5D0B0000000000000000006 /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B5D0B0000000000000000005 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		B5D0B0000000000000000007 /* FirebaseCrashlytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B5D0B0000000000000000005 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCrashlytics;
+		};
+		B5D0B0000000000000000008 /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B5D0B0000000000000000005 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

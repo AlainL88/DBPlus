@@ -6,10 +6,17 @@
 //
 
 import SwiftUI
+import FirebaseCore
+import FirebaseCrashlytics
 
 @main
 struct DB_App: App {
     @State private var store = ConnectionStore()
+
+    init() {
+        FirebaseApp.configure()
+        Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+    }
 
     var body: some Scene {
         WindowGroup {
