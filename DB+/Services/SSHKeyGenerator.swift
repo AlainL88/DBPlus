@@ -68,16 +68,44 @@ enum SSHKeyGenerator {
         return cleaned.isEmpty ? "dbplus" : cleaned
     }
 
-    /// Directory `Application Support/SSHKeys`, creata se manca.
-    private static func keysDirectory() throws -> URL {
+    /// Directory delle chiavi: `Documents/SSHKeys`. Su iOS è la cartella
+    /// visibile da Finder (file sharing) e dall'app File, quindi raggiungibile
+    /// e non persa con gli aggiornamenti; su macOS è `~/Documents/SSHKeys`.
+    static func keysDirectoryURL() throws -> URL {
         let fm = FileManager.default
         let base = try fm.url(
-            for: .applicationSupportDirectory, in: .userDomainMask,
+            for: .documentDirectory, in: .userDomainMask,
             appropriateFor: nil, create: true
         )
         let dir = base.appendingPathComponent("SSHKeys", isDirectory: true)
         try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        migrateLegacyKeysIfNeeded(into: dir)
         return dir
+    }
+
+    private static func keysDirectory() throws -> URL {
+        try keysDirectoryURL()
+    }
+
+    /// Migra le chiavi dalla vecchia posizione (`Application Support/SSHKeys`)
+    /// alla nuova (`Documents/SSHKeys`), se esistono e non sono già presenti.
+    private static func migrateLegacyKeysIfNeeded(into destination: URL) {
+        let fm = FileManager.default
+        guard let supportBase = try? fm.url(
+            for: .applicationSupportDirectory, in: .userDomainMask,
+            appropriateFor: nil, create: false
+        ) else { return }
+        let legacyDir = supportBase.appendingPathComponent("SSHKeys", isDirectory: true)
+        guard fm.fileExists(atPath: legacyDir.path),
+              let entries = try? fm.contentsOfDirectory(at: legacyDir, includingPropertiesForKeys: nil) else {
+            return
+        }
+        for url in entries {
+            let dest = destination.appendingPathComponent(url.lastPathComponent)
+            if !fm.fileExists(atPath: dest.path) {
+                try? fm.moveItem(at: url, to: dest)
+            }
+        }
     }
 
     /// Risolve il percorso di una chiave salvata che potrebbe essere diventato

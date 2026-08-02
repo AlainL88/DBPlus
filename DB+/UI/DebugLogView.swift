@@ -21,6 +21,8 @@ struct DebugLogView: View {
                 Toggle("Registra", isOn: $log.enabled)
                     .labelsHidden()
                     .help("Abilita/disabilita la raccolta del debug")
+                Button("Copia") { PasteboardHelper.copy(log.lines.joined(separator: "\n")) }
+                    .disabled(log.lines.isEmpty)
                 Button("Pulisci") { log.clear() }
                 Button("Chiudi") { dismiss() }
                     .keyboardShortcut(.cancelAction)

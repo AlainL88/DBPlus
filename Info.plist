@@ -12,5 +12,9 @@
 	<false/>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Alain Lima</string>
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 </dict>
 </plist>

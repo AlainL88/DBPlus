@@ -47,15 +47,17 @@ final class DirectTransport: DatabaseTransport {
 
         let connection: MySQLConnection
         do {
-            DebugLog.shared.log("[DB+DEBUG]   -> MySQLConnection.connect: inizio")
-            connection = try await MySQLConnection.connect(
-                to: .makeAddressResolvingHost(host, port: profile.port),
-                username: profile.username,
-                database: profile.defaultSchema,
-                password: password,
-                tlsConfiguration: tlsConfiguration,
-                on: group.next()
-            ).get()
+            DebugLog.shared.log("[DB+DEBUG]   -> MySQLConnection.connect: inizio (timeout 15s)")
+            connection = try await Timeout.withTimeout(15) {
+                try await MySQLConnection.connect(
+                    to: .makeAddressResolvingHost(host, port: self.profile.port),
+                    username: self.profile.username,
+                    database: self.profile.defaultSchema,
+                    password: self.password,
+                    tlsConfiguration: self.tlsConfiguration,
+                    on: self.group.next()
+                ).get()
+            }
             DebugLog.shared.log("[DB+DEBUG]   -> MySQLConnection.connect: OK")
         } catch {
             DebugLog.shared.log("[DB+DEBUG]   -> MySQLConnection.connect ERRORE: \(error.localizedDescription)")
@@ -68,7 +70,9 @@ final class DirectTransport: DatabaseTransport {
         var version = "Sconosciuta"
         DebugLog.shared.log("[DB+DEBUG]   -> SELECT VERSION(): inizio")
         do {
-            let rows = try await connection.simpleQuery("SELECT VERSION() AS v").get()
+            let rows = try await Timeout.withTimeout(5) {
+                try await connection.simpleQuery("SELECT VERSION() AS v").get()
+            }
             if let v = rows.first?.column("v")?.string {
                 version = v
             }
@@ -136,7 +140,9 @@ final class DirectTransport: DatabaseTransport {
     func pingLatency() async throws -> Double {
         let start = DispatchTime.now()
         DebugLog.shared.log("[DB+DEBUG] DirectTransport.pingLatency() SELECT 1: inizio")
-        _ = try await requireConnection().simpleQuery("SELECT 1").get()
+        _ = try await Timeout.withTimeout(5) {
+            try await self.requireConnection().simpleQuery("SELECT 1").get()
+        }
         let ms = Self.elapsedMS(from: start)
         DebugLog.shared.log("[DB+DEBUG] DirectTransport.pingLatency() OK: \(ms) ms")
         return ms

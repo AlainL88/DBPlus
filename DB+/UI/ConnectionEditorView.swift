@@ -256,9 +256,7 @@ struct ConnectionEditorView: View {
         #else
         do {
             let fm = FileManager.default
-            let dir = try fm.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-                .appendingPathComponent("SSHKeys", isDirectory: true)
-            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            let dir = try SSHKeyGenerator.keysDirectoryURL()
             let dest = dir.appendingPathComponent("key_\(url.lastPathComponent)")
             if fm.fileExists(atPath: dest.path) {
                 try fm.removeItem(at: dest)
