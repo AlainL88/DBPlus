@@ -257,10 +257,14 @@ extension GlueHandler {
     }
 
     private func partnerWrite(_ data: NIOAny) {
+        let writable = context?.channel.isWritable ?? false
+        let active = context?.channel.isActive ?? false
+        DebugLog.shared.log("[DB+DEBUG] glue[\(label)].partnerWrite: canale partner attivo=\(active) scrivibile=\(writable)")
         self.context?.write(data, promise: nil)
     }
 
     private func partnerFlush() {
+        DebugLog.shared.log("[DB+DEBUG] glue[\(label)].partnerFlush")
         self.context?.flush()
     }
 
@@ -324,6 +328,7 @@ extension GlueHandler: ChannelDuplexHandler {
     }
 
     func errorCaught(context: ChannelHandlerContext, error: Error) {
+        DebugLog.shared.log("[DB+DEBUG] glue[\(label)].errorCaught: \(error.localizedDescription)")
         self.partner?.partnerCloseFull()
     }
 
