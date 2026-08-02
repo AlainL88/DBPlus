@@ -204,7 +204,12 @@ final class SSHInProcessTunnel: SSHTunnel {
                 DebugLog.shared.log("[DB+DEBUG] tunnel.forward: apertura direct-tcpip \(dbHost):\(dbPort)…")
                 _ = try await client.createDirectTCPIPChannel(using: settings) { sshChannel in
                     let (ours, theirs) = GlueHandler.matchedPair()
-                    return sshChannel.pipeline.addHandlers([ours])
+                    ours.label = "ssh"
+                    theirs.label = "locale"
+                    // Il canale SSH child eredita autoRead=false dal parent; senza
+                    // reads il greeting di MySQL resta in coda. Lo abilitiamo qui.
+                    return sshChannel.setOption(ChannelOptions.autoRead, value: true)
+                        .flatMap { sshChannel.pipeline.addHandlers([ours]) }
                         .flatMap { inbound.pipeline.addHandlers([theirs]) }
                         .map {
                             DebugLog.shared.log("[DB+DEBUG] tunnel.forward: glue installato, primo read sul canale locale")
@@ -238,6 +243,7 @@ final class GlueHandler {
     private var partner: GlueHandler?
     private var context: ChannelHandlerContext?
     private var pendingRead = false
+    var label = ""
     private init() {}
 }
 
@@ -298,6 +304,7 @@ extension GlueHandler: ChannelDuplexHandler {
     }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+        DebugLog.shared.log("[DB+DEBUG] glue[\(label)].channelRead: dati inoltrati")
         self.partner?.partnerWrite(data)
     }
 
