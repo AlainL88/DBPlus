@@ -39,59 +39,77 @@ struct BenchmarkView: View {
     }
 
     private var toolbar: some View {
-        HStack(spacing: 10) {
-            Text("Schema:")
-                .font(.callout)
-            Picker("", selection: $schema) {
-                ForEach(schemas, id: \.self) { name in
-                    Text(name).tag(name)
+        ViewThatFits(in: .horizontal) {
+            // Layout ampio (macOS): tutto in una riga.
+            HStack(spacing: 10) {
+                Text("Schema:")
+                    .font(.callout)
+                schemaPicker
+                    .frame(width: 200)
+                Text("Dataset:")
+                    .font(.callout)
+                datasetToggles
+                Spacer()
+                runButton
+            }
+            // Layout stretto (iPhone): schema+avvia sopra, dataset sotto.
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 10) {
+                    Text("Schema:")
+                        .font(.callout)
+                    schemaPicker
+                    Spacer()
+                    runButton
+                }
+                HStack(spacing: 10) {
+                    Text("Dataset:")
+                        .font(.callout)
+                    datasetToggles
+                    Spacer()
                 }
             }
-            .labelsHidden()
-            .frame(width: 200)
-
-            Text("Dataset:")
-                .font(.callout)
-            Toggle("1k", isOn: Binding(
-                get: { sizes.contains(1_000) },
-                set: { on in
-                    if on { sizes.insert(1_000) } else { sizes.remove(1_000) }
-                }
-            ))
-            #if os(macOS)
-            .toggleStyle(.checkbox)
-            #endif
-            Toggle("10k", isOn: Binding(
-                get: { sizes.contains(10_000) },
-                set: { on in
-                    if on { sizes.insert(10_000) } else { sizes.remove(10_000) }
-                }
-            ))
-            #if os(macOS)
-            .toggleStyle(.checkbox)
-            #endif
-            Toggle("50k", isOn: Binding(
-                get: { sizes.contains(50_000) },
-                set: { on in
-                    if on { sizes.insert(50_000) } else { sizes.remove(50_000) }
-                }
-            ))
-            #if os(macOS)
-            .toggleStyle(.checkbox)
-            #endif
-
-            Spacer()
-
-            Button {
-                Task { await run() }
-            } label: {
-                Label("Esegui benchmark", systemImage: "play.fill")
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(isRunning || schema.isEmpty || sizes.isEmpty)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    private var schemaPicker: some View {
+        Picker("", selection: $schema) {
+            ForEach(schemas, id: \.self) { name in
+                Text(name).tag(name)
+            }
+        }
+        .labelsHidden()
+    }
+
+    private var datasetToggles: some View {
+        HStack(spacing: 10) {
+            sizeToggle("1k", 1_000)
+            sizeToggle("10k", 10_000)
+            sizeToggle("50k", 50_000)
+        }
+    }
+
+    private func sizeToggle(_ label: String, _ value: Int) -> some View {
+        Toggle(label, isOn: Binding(
+            get: { sizes.contains(value) },
+            set: { on in
+                if on { sizes.insert(value) } else { sizes.remove(value) }
+            }
+        ))
+        #if os(macOS)
+        .toggleStyle(.checkbox)
+        #endif
+    }
+
+    private var runButton: some View {
+        Button {
+            Task { await run() }
+        } label: {
+            Label("Esegui benchmark", systemImage: "play.fill")
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(isRunning || schema.isEmpty || sizes.isEmpty)
     }
 
     @ViewBuilder

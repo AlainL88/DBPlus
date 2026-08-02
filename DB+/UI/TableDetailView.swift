@@ -149,35 +149,47 @@ struct TableDetailView: View {
     }
 
     private var dataToolbar: some View {
-        HStack(spacing: 8) {
-            TextField("Filtro SQL (es. id > 100)", text: $filterText)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 280)
-                .onSubmit { Task { page = TablePage(columns: page.columns, rows: [], total: 0, offset: 0, limit: 200); await reload() } }
-            Button("Applica") {
-                Task { page = TablePage(columns: page.columns, rows: [], total: 0, offset: 0, limit: 200); await reload() }
+        ViewThatFits(in: .horizontal) {
+            // Layout ampio (macOS): filtro e azioni in una riga.
+            HStack(spacing: 8) {
+                filterField
+                    .frame(width: 280)
+                Button("Applica") { applyFilter() }
+                Spacer()
+                actionButtons
             }
-            Spacer()
-            Button {
-                showInsertEditor = true
-            } label: {
-                Label("Nuova riga", systemImage: "plus")
+            // Layout stretto (iPhone): filtro sopra, azioni sotto.
+            VStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    filterField
+                    Button("Applica") { applyFilter() }
+                }
+                actionButtons
             }
-            .disabled(isView)
-            Button {
-                Task { await reload() }
-            } label: {
-                Label("Ricarica", systemImage: "arrow.clockwise")
-            }
-            Button(role: .destructive) {
-                showDeleteConfirm = true
-            } label: {
-                Label("Elimina riga", systemImage: "trash")
-            }
-            .disabled(selectedRowIndex == nil || isView)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    private var filterField: some View {
+        TextField("Filtro SQL (es. id > 100)", text: $filterText)
+            .textFieldStyle(.roundedBorder)
+            .onSubmit { applyFilter() }
+    }
+
+    private var actionButtons: some View {
+        HStack(spacing: 8) {
+            Button { showInsertEditor = true } label: { Label("Nuova riga", systemImage: "plus") }
+                .disabled(isView)
+            Button { Task { await reload() } } label: { Label("Ricarica", systemImage: "arrow.clockwise") }
+            Button(role: .destructive) { showDeleteConfirm = true } label: { Label("Elimina riga", systemImage: "trash") }
+                .disabled(selectedRowIndex == nil || isView)
+        }
+    }
+
+    private func applyFilter() {
+        page = TablePage(columns: page.columns, rows: [], total: 0, offset: 0, limit: 200)
+        Task { await reload() }
     }
 
     private var paginationBar: some View {
@@ -232,7 +244,7 @@ struct TableDetailView: View {
     }
 
     private func summarySection(_ s: TableStructure) -> some View {
-        HStack(spacing: 16) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 16)], alignment: .leading, spacing: 16) {
             infoItem("Engine", s.engine ?? "—")
             infoItem("Collation", s.tableCollation ?? "—")
             infoItem("Auto-increment", s.autoIncrement.map(String.init) ?? "—")

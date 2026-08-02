@@ -59,43 +59,70 @@ struct QueryConsoleView: View {
     }
 
     private var toolbar: some View {
-        HStack(spacing: 8) {
-            Button {
-                runWithGuard()
-            } label: {
-                Label("Esegui", systemImage: "play.fill")
+        ViewThatFits(in: .horizontal) {
+            // Layout ampio (macOS): tutto in una riga.
+            HStack(spacing: 8) {
+                runButton
+                clearButton
+                Spacer()
+                Text("Limite righe:")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                rowLimitPicker
+                    .frame(width: 110)
+                Button("Chiudi") { dismiss() }
             }
-            .keyboardShortcut(.return, modifiers: [.command])
-            .buttonStyle(.borderedProminent)
-            .disabled(isRunning || sql.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-            Button {
-                sql = ""
-                results = []
-                statusText = ""
-            } label: {
-                Label("Svuota", systemImage: "trash")
+            // Layout stretto (iPhone): azioni sopra, limite sotto.
+            VStack(alignment: .trailing, spacing: 8) {
+                HStack(spacing: 8) {
+                    runButton
+                    clearButton
+                    Spacer()
+                    Button("Chiudi") { dismiss() }
+                }
+                HStack(spacing: 8) {
+                    Text("Limite righe:")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    rowLimitPicker
+                    Spacer()
+                }
             }
-            .disabled(sql.isEmpty && results.isEmpty)
-
-            Spacer()
-
-            Text("Limite righe:")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Picker("", selection: $rowLimit) {
-                Text("500").tag(500)
-                Text("1.000").tag(1000)
-                Text("5.000").tag(5000)
-                Text("50.000").tag(50000)
-            }
-            .labelsHidden()
-            .frame(width: 110)
-
-            Button("Chiudi") { dismiss() }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    private var runButton: some View {
+        Button {
+            runWithGuard()
+        } label: {
+            Label("Esegui", systemImage: "play.fill")
+        }
+        .keyboardShortcut(.return, modifiers: [.command])
+        .buttonStyle(.borderedProminent)
+        .disabled(isRunning || sql.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
+
+    private var clearButton: some View {
+        Button {
+            sql = ""
+            results = []
+            statusText = ""
+        } label: {
+            Label("Svuota", systemImage: "trash")
+        }
+        .disabled(sql.isEmpty && results.isEmpty)
+    }
+
+    private var rowLimitPicker: some View {
+        Picker("", selection: $rowLimit) {
+            Text("500").tag(500)
+            Text("1.000").tag(1000)
+            Text("5.000").tag(5000)
+            Text("50.000").tag(50000)
+        }
+        .labelsHidden()
     }
 
     @ViewBuilder
