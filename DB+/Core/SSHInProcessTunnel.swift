@@ -133,9 +133,18 @@ final class SSHInProcessTunnel: SSHTunnel {
                 throw DBError.invalid("Nessuna chiave privata selezionata.")
             }
             let url = URL(fileURLWithPath: profile.sshKeyPath)
+            DebugLog.shared.log("[DB+DEBUG] makeAuthentication: sshKeyPath=\(profile.sshKeyPath)")
+            DebugLog.shared.log("[DB+DEBUG] makeAuthentication: file esiste=\(FileManager.default.fileExists(atPath: url.path)) leggibile=\(FileManager.default.isReadableFile(atPath: url.path))")
             guard let content = try? String(contentsOf: url, encoding: .utf8) else {
-                throw DBError.invalid("Impossibile leggere la chiave privata (\(url.lastPathComponent)).")
+                DebugLog.shared.log("[DB+DEBUG] makeAuthentication: lettura chiave FALLITA — \(url.path)")
+                if let dirContents = try? FileManager.default.contentsOfDirectory(atPath: url.deletingLastPathComponent().path) {
+                    DebugLog.shared.log("[DB+DEBUG] makeAuthentication: contenuto cartella = \(dirContents)")
+                } else {
+                    DebugLog.shared.log("[DB+DEBUG] makeAuthentication: cartella \(url.deletingLastPathComponent().path) non leggibile o inesistente")
+                }
+                throw DBError.invalid("Impossibile leggere la chiave privata '\(url.lastPathComponent)' — file mancante o non accessibile. Percorso: \(url.path)")
             }
+            DebugLog.shared.log("[DB+DEBUG] makeAuthentication: chiave letta OK (\(content.count) byte)")
 
             let decryptionKey: Data?
             if profile.sshUsePassphrase, let passphrase, !passphrase.isEmpty {
