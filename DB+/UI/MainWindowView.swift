@@ -9,7 +9,7 @@ struct MainWindowView: View {
     @State private var store: ConnectionStore
     @State private var activeSession: ConnectionSession?
     @State private var selectedProfileID: UUID?
-    @State private var showEditor = false
+    @State private var showNewEditor = false
     @State private var showDebugLog = false
     @State private var debugLog = DebugLog.shared
     @State private var editingProfile: ConnectionProfile?
@@ -31,11 +31,20 @@ struct MainWindowView: View {
             }
         }
         .navigationSplitViewColumnWidth(min: 240, ideal: 280)
-        .sheet(isPresented: $showEditor) {
-            ConnectionEditorView(profile: editingProfile) { updated in
+        .sheet(item: $editingProfile) { profile in
+            // `.sheet(item:)` crea una view fresca a ogni modifica: gli @State
+            // dell'editor vengono reinizializzati dai dati del profilo.
+            ConnectionEditorView(profile: profile) { updated in
                 store.upsert(updated)
                 selectedProfileID = updated.id
-                showEditor = false
+                editingProfile = nil
+            }
+        }
+        .sheet(isPresented: $showNewEditor) {
+            ConnectionEditorView(profile: nil) { updated in
+                store.upsert(updated)
+                selectedProfileID = updated.id
+                showNewEditor = false
             }
         }
         .sheet(isPresented: $showDebugLog) {
@@ -59,7 +68,6 @@ struct MainWindowView: View {
                         test(profile)
                     } onEdit: {
                         editingProfile = profile
-                        showEditor = true
                     } onDelete: {
                         store.remove(profile)
                     }
@@ -86,7 +94,7 @@ struct MainWindowView: View {
                 HStack {
                     Button {
                         editingProfile = nil
-                        showEditor = true
+                        showNewEditor = true
                     } label: {
                         Label("Nuova connessione", systemImage: "plus.circle")
                     }
@@ -152,7 +160,7 @@ struct MainWindowView: View {
                 .disabled(isTesting || selectedProfile() == nil)
                 Button("Apri connessioni…") {
                     editingProfile = nil
-                    showEditor = true
+                    showNewEditor = true
                 }
             }
             .padding(.top, 8)
