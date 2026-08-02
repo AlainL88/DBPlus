@@ -98,3 +98,43 @@ struct ConnectionProfile: Identifiable, Codable, Equatable, Sendable {
         ConnectionProfile()
     }
 }
+
+// MARK: - Codable backward-compatible
+//
+// La decodifica usa `decodeIfPresent` con i valori di default per ogni
+// campo: aggiungere una proprietà in una release futura non deve rendere
+// illeggibili i profili già salvati (altrimenti ConnectionStore li azzera).
+// Nota: l'init(from:) vive in un'estensione così l'init memberwise della
+// struct resta disponibile.
+extension ConnectionProfile {
+    private enum CodingKeys: String, CodingKey {
+        case id, name, color, keepAlive
+        case host, port, username, defaultSchema, useTLS, allowSelfSignedTLS
+        case mode
+        case sshHost, sshPort, sshUsername, sshAuthType, sshKeyPath, sshUsePassphrase
+        case bridgeURL, bridgeUseHMAC
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+        color = try c.decodeIfPresent(String.self, forKey: .color) ?? "blue"
+        keepAlive = try c.decodeIfPresent(Bool.self, forKey: .keepAlive) ?? true
+        host = try c.decodeIfPresent(String.self, forKey: .host) ?? ""
+        port = try c.decodeIfPresent(Int.self, forKey: .port) ?? 3306
+        username = try c.decodeIfPresent(String.self, forKey: .username) ?? ""
+        defaultSchema = try c.decodeIfPresent(String.self, forKey: .defaultSchema) ?? ""
+        useTLS = try c.decodeIfPresent(Bool.self, forKey: .useTLS) ?? true
+        allowSelfSignedTLS = try c.decodeIfPresent(Bool.self, forKey: .allowSelfSignedTLS) ?? false
+        mode = try c.decodeIfPresent(ConnectionMode.self, forKey: .mode) ?? .direct
+        sshHost = try c.decodeIfPresent(String.self, forKey: .sshHost) ?? ""
+        sshPort = try c.decodeIfPresent(Int.self, forKey: .sshPort) ?? 22
+        sshUsername = try c.decodeIfPresent(String.self, forKey: .sshUsername) ?? ""
+        sshAuthType = try c.decodeIfPresent(SSHAuthType.self, forKey: .sshAuthType) ?? .password
+        sshKeyPath = try c.decodeIfPresent(String.self, forKey: .sshKeyPath) ?? ""
+        sshUsePassphrase = try c.decodeIfPresent(Bool.self, forKey: .sshUsePassphrase) ?? false
+        bridgeURL = try c.decodeIfPresent(String.self, forKey: .bridgeURL) ?? ""
+        bridgeUseHMAC = try c.decodeIfPresent(Bool.self, forKey: .bridgeUseHMAC) ?? true
+    }
+}

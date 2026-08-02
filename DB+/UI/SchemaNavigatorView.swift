@@ -38,6 +38,11 @@ struct SchemaNavigatorView: View {
         .task {
             await reload()
         }
+        .onChange(of: session.isConnecting) { _, connecting in
+            if !connecting {
+                Task { await reload() }
+            }
+        }
         .safeAreaInset(edge: .top) {
             HStack {
                 Text("Struttura")
@@ -110,6 +115,10 @@ struct SchemaNavigatorView: View {
     }
 
     private func reload() async {
+        guard !session.isConnecting else {
+            // Connessione in corso: verrà ricaricata quando finisce (onChange).
+            return
+        }
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
