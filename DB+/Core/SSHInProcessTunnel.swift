@@ -67,9 +67,6 @@ final class SSHInProcessTunnel: SSHTunnel {
 
         let bootstrap = ServerBootstrap(group: group)
             .serverChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
-            // Letture sospese finché il canale SSH non è pronto, per non perdere
-            // il primo byte (handshake MySQL) che potrebbe arrivare prima del glue.
-            .childChannelOption(ChannelOptions.autoRead, value: false)
             .childChannelInitializer { inbound in
                 Self.forward(inbound, client: client, dbHost: dbHost, dbPort: profile.port)
             }
@@ -192,38 +189,43 @@ final class SSHInProcessTunnel: SSHTunnel {
             return inbound.eventLoop.makeFailedFuture(DBError.invalid("Connessione locale senza indirizzo remoto."))
         }
         DebugLog.shared.log("[DB+DEBUG] tunnel.forward: connessione locale accettata da \(originator) — target \(dbHost):\(dbPort)")
-        let promise = inbound.eventLoop.makePromise(of: Void.self)
 
-        Task {
-            do {
-                let settings = SSHChannelType.DirectTCPIP(
-                    targetHost: dbHost,
-                    targetPort: dbPort,
-                    originatorAddress: originator
-                )
-                DebugLog.shared.log("[DB+DEBUG] tunnel.forward: apertura direct-tcpip \(dbHost):\(dbPort)…")
-                _ = try await client.createDirectTCPIPChannel(using: settings) { sshChannel in
-                    let (ours, theirs) = GlueHandler.matchedPair()
-                    ours.label = "ssh"
-                    theirs.label = "locale"
-                    // Il canale SSH child eredita autoRead=false dal parent; senza
-                    // reads il greeting di MySQL resta in coda. Lo abilitiamo qui.
-                    return sshChannel.setOption(ChannelOptions.autoRead, value: true)
-                        .flatMap { sshChannel.pipeline.addHandlers([ours]) }
-                        .flatMap { inbound.pipeline.addHandlers([theirs]) }
-                        .map {
-                            DebugLog.shared.log("[DB+DEBUG] tunnel.forward: glue installato, primo read sul canale locale")
-                            return inbound.read()
-                        }
+        let (ours, theirs) = GlueHandler.matchedPair()
+        ours.label = "ssh"
+        theirs.label = "locale"
+
+        // Il canale locale deve attivarsi SUBITO (l'initializer ritorna appena
+        // il glue è collegato): se il greeting di MySQL arriva mentre il canale
+        // locale è ancora in attivazione il write va perso (attivo=false).
+        // L'apertura del canale SSH avviene in background e il glue viene
+        // collegato quando il canale è pronto.
+        let wiring = inbound.pipeline.addHandler(theirs).map {
+            DebugLog.shared.log("[DB+DEBUG] tunnel.forward: glue locale pronto")
+        }
+
+        wiring.whenComplete { _ in
+            Task {
+                do {
+                    let settings = SSHChannelType.DirectTCPIP(
+                        targetHost: dbHost,
+                        targetPort: dbPort,
+                        originatorAddress: originator
+                    )
+                    DebugLog.shared.log("[DB+DEBUG] tunnel.forward: apertura direct-tcpip \(dbHost):\(dbPort)…")
+                    _ = try await client.createDirectTCPIPChannel(using: settings) { sshChannel in
+                        // Il canale SSH child eredita autoRead=false dal parent;
+                        // senza reads il greeting di MySQL resta in coda.
+                        return sshChannel.setOption(ChannelOptions.autoRead, value: true)
+                            .flatMap { sshChannel.pipeline.addHandlers([ours]) }
+                    }
+                    DebugLog.shared.log("[DB+DEBUG] tunnel.forward: direct-tcpip aperto OK")
+                } catch {
+                    DebugLog.shared.log("[DB+DEBUG] tunnel.forward: direct-tcpip ERRORE — \(error.localizedDescription)")
+                    inbound.eventLoop.execute { inbound.close(promise: nil) }
                 }
-                DebugLog.shared.log("[DB+DEBUG] tunnel.forward: direct-tcpip aperto OK")
-                promise.succeed(())
-            } catch {
-                DebugLog.shared.log("[DB+DEBUG] tunnel.forward: direct-tcpip ERRORE — \(error.localizedDescription)")
-                promise.fail(error)
             }
         }
-        return promise.futureResult
+        return wiring
     }
 }
 
