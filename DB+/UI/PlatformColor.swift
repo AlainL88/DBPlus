@@ -45,4 +45,22 @@ extension Color {
         return Color(uiColor: .separator)
         #endif
     }
+
+    /// Sfondo delle card (superficie chiara sopra uno sfondo raggruppato).
+    static var cardBackground: Color {
+        #if os(macOS)
+        return Color(nsColor: .controlBackgroundColor)
+        #else
+        return Color(uiColor: .secondarySystemGroupedBackground)
+        #endif
+    }
+
+    /// Sfondo raggruppato (grigio) dietro le card.
+    static var groupedBackground: Color {
+        #if os(macOS)
+        return Color(nsColor: .underPageBackgroundColor)
+        #else
+        return Color(uiColor: .systemGroupedBackground)
+        #endif
+    }
 }

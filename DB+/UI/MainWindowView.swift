@@ -52,31 +52,64 @@ struct MainWindowView: View {
     // MARK: - Sidebar
 
     private var sidebar: some View {
-        List(selection: $selectedProfileID) {
-            Section("Connessioni") {
-                ForEach(store.profiles) { profile in
-                    ConnectionRowView(
-                        profile: profile,
-                        isActive: activeSession?.profile.id == profile.id,
-                        isConnected: activeSession?.profile.id == profile.id
-                    ) {
-                        connect(to: profile)
-                    } onTest: {
-                        test(profile)
-                    } onEdit: {
-                        editingProfile = profile
-                    } onDelete: {
-                        store.remove(profile)
-                    }
+        VStack(spacing: 0) {
+            // Header: titolo + ingranaggio impostazioni in alto.
+            HStack {
+                Text("Connessioni")
+                    .font(.largeTitle.bold())
+                Spacer()
+                Button {
+                    showSettings = true
+                } label: {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 17, weight: .medium))
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
                 }
-                .onChange(of: selectedProfileID) { _, newValue in
-                    if let profile = store.profile(id: newValue) {
-                        connect(to: profile)
-                    }
+                .buttonStyle(.borderless)
+                .sheet(isPresented: $showSettings) {
+                    SettingsView()
                 }
             }
+            .padding(.horizontal, 18)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+
+            ScrollView {
+                VStack(spacing: 12) {
+                    ForEach(store.profiles) { profile in
+                        ConnectionCardView(
+                            profile: profile,
+                            isActive: activeSession?.profile.id == profile.id,
+                            isConnecting: isConnecting && activeSession?.profile.id == profile.id,
+                            onConnect: { connect(to: profile) },
+                            onTest: { test(profile) },
+                            onEdit: { editingProfile = profile },
+                            onDelete: { store.remove(profile) }
+                        )
+                    }
+                    Button {
+                        editingProfile = nil
+                        showNewEditor = true
+                    } label: {
+                        Label("Nuova connessione", systemImage: "plus")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.tint)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 16))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [6]))
+                                    .foregroundStyle(.tint.opacity(0.5))
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(16)
+            }
         }
-        .listStyle(.sidebar)
+        .background(Color.groupedBackground)
         .safeAreaInset(edge: .bottom) {
             VStack(alignment: .leading, spacing: 6) {
                 if let session = activeSession, let info = session.serverInfo {
@@ -88,27 +121,6 @@ struct MainWindowView: View {
                         .lineLimit(3)
                         .padding(.horizontal, 8)
                 }
-                HStack {
-                    Button {
-                        editingProfile = nil
-                        showNewEditor = true
-                    } label: {
-                        Label("Nuova connessione", systemImage: "plus.circle")
-                    }
-                    .buttonStyle(.borderless)
-                    Spacer()
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Label("Impostazioni", systemImage: "gearshape")
-                    }
-                    .buttonStyle(.borderless)
-                    .sheet(isPresented: $showSettings) {
-                        SettingsView()
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 6)
             }
         }
     }
