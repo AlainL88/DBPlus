@@ -23,17 +23,15 @@ struct MainWindowView: View {
     var body: some View {
         Group {
             #if os(iOS)
-            // Su iOS compact la NavigationSplitView non naviga al dettaglio senza
-            // una selezione da List; usiamo una NavigationStack: il workspace è
-            // pushato quando la connessione diventa attiva e torna indietro alla
-            // disconnessione (anche con lo swipe indietro).
-            NavigationStack {
+            // Su iOS compact la NavigationSplitView non naviga al dettaglio; mostriamo
+            // direttamente il workspace quando la connessione è attiva. Il workspace ha
+            // la sua NavigationStack interna (database → schema → tabella), quindi qui
+            // niente stack annidata: due NavigationStack innestate rompono la navigazione
+            // (tornava alla schermata principale selezionando un database).
+            if let session = activeSession {
+                WorkspaceView(session: session, onDisconnect: { Task { await disconnect() } })
+            } else {
                 sidebar
-                    .navigationDestination(isPresented: workspaceActive) {
-                        if let session = activeSession {
-                            WorkspaceView(session: session, onDisconnect: { Task { await disconnect() } })
-                        }
-                    }
             }
             #else
             NavigationSplitView {
@@ -64,15 +62,6 @@ struct MainWindowView: View {
                 showNewEditor = false
             }
         }
-    }
-
-    /// Su iOS il workspace è una pagina pushata: la push/pop è guidata dalla
-    /// presenza della sessione attiva (lo swipe indietro la disconnette).
-    private var workspaceActive: Binding<Bool> {
-        Binding(
-            get: { activeSession != nil },
-            set: { if !$0, activeSession != nil { Task { await disconnect() } } }
-        )
     }
 
     // MARK: - Sidebar
