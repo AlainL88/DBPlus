@@ -14,7 +14,8 @@ struct DataGridService {
     let schema: String
     let table: String
 
-    private let pageSize = 200
+    /// Numero di record per pagina (0 = illimitato).
+    var pageSize: Int = 200
 
     func loadStructure() async throws -> TableStructure {
         try await transport.tableStructure(schema: schema, table: table)
@@ -45,9 +46,12 @@ struct DataGridService {
         if let sortColumn, structure.columns.contains(where: { $0.name == sortColumn }) {
             sql += " ORDER BY \(SQLIdentifier.quote(sortColumn)) \(ascending ? "ASC" : "DESC")"
         }
-        sql += " LIMIT \(pageSize) OFFSET \(offset)"
+        // pageSize 0 = illimitato: niente clausola LIMIT, cap alto lato client.
+        let limitClause = pageSize > 0 ? " LIMIT \(pageSize) OFFSET \(offset)" : ""
+        sql += limitClause
+        let rowLimit = pageSize > 0 ? pageSize : 1_000_000
 
-        let result = try await transport.execute(StatementRequest(sql: sql, rowLimit: pageSize))
+        let result = try await transport.execute(StatementRequest(sql: sql, rowLimit: rowLimit))
         let total = try await count()
 
         return TablePage(
@@ -123,8 +127,8 @@ struct TablePage: Sendable {
     var offset: Int
     var limit: Int
 
-    var pageNumber: Int { offset / limit + 1 }
-    var totalPages: Int { max(1, Int(ceil(Double(total) / Double(limit)))) }
+    var pageNumber: Int { limit > 0 ? offset / limit + 1 : 1 }
+    var totalPages: Int { limit > 0 ? max(1, Int(ceil(Double(total) / Double(limit)))) : 1 }
 
     func value(row: Int, column: Int) -> CellValue {
         guard row < rows.count, column < rows[row].count else { return .null }

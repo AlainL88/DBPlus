@@ -30,6 +30,8 @@ struct TableDetailView: View {
     @State private var showDeleteConfirm = false
     @State private var statusMessage: String?
     @State private var exportShareItem: FileShareItem?
+    /// Record per pagina (0 = illimitato).
+    @AppStorage("pageLimit") private var pageLimit = 200
 
     private var tableName: String { node.displayName }
 
@@ -81,6 +83,11 @@ struct TableDetailView: View {
             Button("Annulla", role: .cancel) {}
         } message: {
             Text("L'operazione esegue un DELETE basato sulla chiave primaria.")
+        }
+        .onChange(of: pageLimit) { _, _ in
+            // Applica subito la nuova dimensione pagina: torna alla prima pagina.
+            page = TablePage(columns: page.columns, rows: [], total: 0, offset: 0, limit: pageLimit)
+            Task { await reload() }
         }
     }
 
@@ -194,7 +201,7 @@ struct TableDetailView: View {
     }
 
     private func applyFilter() {
-        page = TablePage(columns: page.columns, rows: [], total: 0, offset: 0, limit: 200)
+        page = TablePage(columns: page.columns, rows: [], total: 0, offset: 0, limit: pageLimit)
         Task { await reload() }
     }
 
@@ -204,24 +211,26 @@ struct TableDetailView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
-            // Paginazione
-            Button {
-                page = TablePage(columns: page.columns, rows: [], total: page.total, offset: max(0, page.offset - page.limit), limit: page.limit)
-                Task { await reload() }
-            } label: {
-                Image(systemName: "chevron.left")
+            // Paginazione (nascosta quando "illimitato")
+            if page.limit > 0 {
+                Button {
+                    page = TablePage(columns: page.columns, rows: [], total: page.total, offset: max(0, page.offset - page.limit), limit: page.limit)
+                    Task { await reload() }
+                } label: {
+                    Image(systemName: "chevron.left")
+                }
+                .disabled(page.offset <= 0)
+                Text("\(page.pageNumber) / \(page.totalPages)")
+                    .font(.caption)
+                    .monospacedDigit()
+                Button {
+                    page = TablePage(columns: page.columns, rows: [], total: page.total, offset: page.offset + page.limit, limit: page.limit)
+                    Task { await reload() }
+                } label: {
+                    Image(systemName: "chevron.right")
+                }
+                .disabled(page.offset + page.limit >= page.total)
             }
-            .disabled(page.offset <= 0)
-            Text("\(page.pageNumber) / \(page.totalPages)")
-                .font(.caption)
-                .monospacedDigit()
-            Button {
-                page = TablePage(columns: page.columns, rows: [], total: page.total, offset: page.offset + page.limit, limit: page.limit)
-                Task { await reload() }
-            } label: {
-                Image(systemName: "chevron.right")
-            }
-            .disabled(page.offset + page.limit >= page.total)
             Rectangle()
                 .fill(Color.separatorLine)
                 .frame(width: 1, height: 16)
@@ -352,7 +361,7 @@ struct TableDetailView: View {
     // MARK: - Azioni
 
     private func makeService() throws -> DataGridService {
-        DataGridService(transport: try session.requireTransport(), schema: schema, table: tableName)
+        DataGridService(transport: try session.requireTransport(), schema: schema, table: tableName, pageSize: pageLimit)
     }
 
     private func loadInitial() async {
@@ -362,7 +371,7 @@ struct TableDetailView: View {
             structure = structData
             page = TablePage(columns: structData.columns.map {
                 ColumnHeader(name: $0.name, typeName: $0.columnType, isUnsigned: $0.isUnsigned, index: $0.ordinal - 1)
-            }, rows: [], total: 0, offset: 0, limit: 200)
+            }, rows: [], total: 0, offset: 0, limit: pageLimit)
             await reload()
         } catch {
             errorMessage = error.localizedDescription

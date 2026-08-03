@@ -10,6 +10,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("requireBiometricLock") private var requireBiometricLock = true
+    @AppStorage("pageLimit") private var pageLimit = 200
     @State private var showDebugLog = false
 
     var body: some View {
@@ -21,6 +22,21 @@ struct SettingsView: View {
                 }
                 Section {
                     Text("Il blocco protegge l'accesso alle connessioni salvate. Se disattivato, l'app si apre direttamente.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Section("Dati") {
+                    HStack {
+                        Text("Record per pagina")
+                        Spacer()
+                        TextField("Record", value: $pageLimit, format: .number)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 90)
+                            #if os(iOS)
+                            .keyboardType(.numberPad)
+                            #endif
+                    }
+                    Text("Numero di righe caricate per pagina. 0 = illimitato (attento con tabelle grandi).")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
