@@ -13,6 +13,7 @@ struct DebugLogView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        let lines = log.snapshot()
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
                 Text("Log debug")
@@ -21,8 +22,8 @@ struct DebugLogView: View {
                 Toggle("Registra", isOn: $log.enabled)
                     .labelsHidden()
                     .help("Abilita/disabilita la raccolta del debug")
-                Button("Copia") { PasteboardHelper.copy(log.lines.joined(separator: "\n")) }
-                    .disabled(log.lines.isEmpty)
+                Button("Copia") { PasteboardHelper.copy(lines.joined(separator: "\n")) }
+                    .disabled(lines.isEmpty)
                 Button("Pulisci") { log.clear() }
                 Button("Chiudi") { dismiss() }
                     .keyboardShortcut(.cancelAction)
@@ -30,7 +31,7 @@ struct DebugLogView: View {
 
             Divider()
 
-            if log.lines.isEmpty {
+            if lines.isEmpty {
                 Spacer()
                 Text("Nessun messaggio di debug.")
                     .foregroundStyle(.secondary)
@@ -38,7 +39,7 @@ struct DebugLogView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {
-                        ForEach(Array(log.lines.enumerated()), id: \.offset) { _, line in
+                        ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
                             Text(line)
                                 .font(.system(size: 10, design: .monospaced))
                                 .textSelection(.enabled)
