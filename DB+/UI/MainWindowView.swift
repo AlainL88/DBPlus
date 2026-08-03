@@ -21,16 +21,33 @@ struct MainWindowView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
-            sidebar
-        } detail: {
-            if let session = activeSession {
-                WorkspaceView(session: session, onDisconnect: { Task { await disconnect() } })
-            } else {
-                welcomeView
+        Group {
+            #if os(iOS)
+            // Su iOS compact la NavigationSplitView non naviga al dettaglio senza
+            // una selezione da List; usiamo una NavigationStack: il workspace è
+            // pushato quando la connessione diventa attiva e torna indietro alla
+            // disconnessione (anche con lo swipe indietro).
+            NavigationStack {
+                sidebar
+                    .navigationDestination(isPresented: workspaceActive) {
+                        if let session = activeSession {
+                            WorkspaceView(session: session, onDisconnect: { Task { await disconnect() } })
+                        }
+                    }
             }
+            #else
+            NavigationSplitView {
+                sidebar
+            } detail: {
+                if let session = activeSession {
+                    WorkspaceView(session: session, onDisconnect: { Task { await disconnect() } })
+                } else {
+                    welcomeView
+                }
+            }
+            .navigationSplitViewColumnWidth(min: 240, ideal: 280)
+            #endif
         }
-        .navigationSplitViewColumnWidth(min: 240, ideal: 280)
         .sheet(item: $editingProfile) { profile in
             // `.sheet(item:)` crea una view fresca a ogni modifica: gli @State
             // dell'editor vengono reinizializzati dai dati del profilo.
@@ -47,6 +64,15 @@ struct MainWindowView: View {
                 showNewEditor = false
             }
         }
+    }
+
+    /// Su iOS il workspace è una pagina pushata: la push/pop è guidata dalla
+    /// presenza della sessione attiva (lo swipe indietro la disconnette).
+    private var workspaceActive: Binding<Bool> {
+        Binding(
+            get: { activeSession != nil },
+            set: { if !$0, activeSession != nil { Task { await disconnect() } } }
+        )
     }
 
     // MARK: - Sidebar
