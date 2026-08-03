@@ -19,6 +19,8 @@ struct DataGridView: View {
     var onSelectRow: (Int) -> Void = { _ in }
     var onSortColumn: (String) -> Void = { _ in }
     var onEditCell: ((Int, Int, String) -> Void)? = nil
+    var onSelectCell: ((Int, Int) -> Void)? = nil
+    var highlightedCell: (row: Int, col: Int)? = nil
 
     @State private var editing: (row: Int, col: Int)?
     @State private var editText = ""
@@ -29,24 +31,28 @@ struct DataGridView: View {
     private let columnWidth: CGFloat = 160
 
     var body: some View {
-        ScrollView([.horizontal, .vertical]) {
-            LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                Section {
-                    ForEach(0..<rows.count, id: \.self) { rowIndex in
-                        rowView(rowIndex)
+        GeometryReader { geo in
+            ScrollView([.horizontal, .vertical]) {
+                LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                    Section {
+                        ForEach(0..<rows.count, id: \.self) { rowIndex in
+                            rowView(rowIndex)
+                        }
+                    } header: {
+                        headerView
                     }
-                } header: {
-                    headerView
                 }
+                // In uno ScrollView bidirezionale SwiftUI propone dimensione infinita e
+                // centra il contenuto se più piccolo del viewport. minWidth/minHeight dal
+                // viewport reale (GeometryReader) forza l'allineamento in alto a sinistra,
+                // mantenendo lo scroll quando il contenuto è più grande.
+                .frame(minWidth: geo.size.width, minHeight: geo.size.height, alignment: .topLeading)
             }
-            // In uno ScrollView bidirezionale SwiftUI centra il contenuto se più piccolo
-            // del viewport; questo frame forza l'allineamento in alto a sinistra.
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(Color.gridBackground)
+            #if os(macOS)
+            .onExitCommand { editing = nil }
+            #endif
         }
-        .background(Color.gridBackground)
-        #if os(macOS)
-        .onExitCommand { editing = nil }
-        #endif
     }
 
     // MARK: - Header
@@ -58,8 +64,8 @@ struct DataGridView: View {
                 Color.gridBackground
             }
             .frame(width: 44, height: 28)
-            .overlay(alignment: .bottom) { Divider() }
-            .overlay(alignment: .leading) { Divider() }
+            .overlay(alignment: .bottom) { Rectangle().fill(Color.primary.opacity(0.25)).frame(height: 1) }
+            .overlay(alignment: .leading) { Rectangle().fill(Color.primary.opacity(0.25)).frame(width: 1) }
 
             ForEach(0..<columns.count, id: \.self) { columnIndex in
                 columnHeader(index: columnIndex)
@@ -93,8 +99,10 @@ struct DataGridView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .overlay(alignment: .bottom) { Divider() }
-        .overlay(alignment: .leading) { Divider().opacity(0.3) }
+        // Bordi espliciti agli estremi (niente Divider in overlay, che può risolvere
+        // l'asse in modo imprevedibile dentro un Button).
+        .overlay(alignment: .bottom) { Rectangle().fill(Color.primary.opacity(0.25)).frame(height: 1) }
+        .overlay(alignment: .leading) { Rectangle().fill(Color.primary.opacity(0.15)).frame(width: 1) }
     }
 
     // MARK: - Righe
@@ -129,6 +137,7 @@ struct DataGridView: View {
 
     private func cellView(row: Int, col: Int, value: CellValue, isSelected: Bool) -> some View {
         let isEditing = editing?.row == row && editing?.col == col
+        let isHighlighted = highlightedCell.map { $0.row == row && $0.col == col } ?? false
         let bg: Color = {
             if isSelected { return Color.selectedRowBackground }
             #if os(macOS)
@@ -167,6 +176,12 @@ struct DataGridView: View {
             .frame(width: columnWidth, height: 24, alignment: .topLeading)
             .overlay(alignment: .bottom) { Divider().opacity(0.3) }
             .overlay(alignment: .leading) { Divider().opacity(0.3) }
+            .overlay {
+                if isHighlighted {
+                    RoundedRectangle(cornerRadius: 3)
+                        .stroke(Color.accentColor, lineWidth: 2)
+                }
+            }
         }
         #if os(macOS)
         .onHover { hovering in
@@ -177,6 +192,10 @@ struct DataGridView: View {
             guard onEditCell != nil else { return }
             editText = value.isNull ? "" : value.editString
             editing = (row: row, col: col)
+        }
+        .onTapGesture(count: 1) {
+            onSelectRow(row)
+            onSelectCell?(row, col)
         }
     }
 

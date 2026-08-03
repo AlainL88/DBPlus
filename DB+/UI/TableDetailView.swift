@@ -20,6 +20,7 @@ struct TableDetailView: View {
     @State private var structure: TableStructure?
     @State private var page = TablePage(columns: [], rows: [], total: 0, offset: 0, limit: 200)
     @State private var selectedRowIndex: Int?
+    @State private var editingCell: (row: Int, col: Int)?
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var sortColumn: String?
@@ -144,7 +145,22 @@ struct TableDetailView: View {
                         }
                         Task { await reload() }
                     },
-                    onEditCell: isView ? nil : performCellEdit
+                    onEditCell: isView ? nil : performCellEdit,
+                    onSelectCell: isView ? nil : { row, col in
+                        editingCell = (row: row, col: col)
+                    },
+                    highlightedCell: editingCell
+                )
+            }
+            if !isView, let cell = editingCell {
+                CellEditorPanel(
+                    column: page.columns[cell.col],
+                    value: page.value(row: cell.row, column: cell.col),
+                    onSave: { newText in
+                        performCellEdit(row: cell.row, col: cell.col, newText: newText)
+                        editingCell = nil
+                    },
+                    onCancel: { editingCell = nil }
                 )
             }
             Divider()
