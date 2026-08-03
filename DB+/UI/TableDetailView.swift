@@ -162,6 +162,10 @@ struct TableDetailView: View {
                     },
                     onCancel: { editingCell = nil }
                 )
+                // Cambiando cella SwiftUI riusa la stessa vista senza rieseguire
+                // init(); .id() forza una nuova identità così lo stato del pannello
+                // viene re-inizializzato con il valore della cella selezionata.
+                .id("\(cell.row):\(cell.col)")
             }
             Divider()
             paginationBar
