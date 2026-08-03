@@ -16,5 +16,7 @@
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<key>NSFaceIDUsageDescription</key>
+	<string>DB+ usa Face ID per sbloccare l'accesso alle connessioni salvate.</string>
 </dict>
 </plist>

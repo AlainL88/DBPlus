@@ -11,10 +11,12 @@ struct MainWindowView: View {
     @State private var selectedProfileID: UUID?
     @State private var showNewEditor = false
     @State private var showDebugLog = false
+    @State private var showSettings = false
     @State private var debugLog = DebugLog.shared
     @State private var editingProfile: ConnectionProfile?
     @State private var testResult: String?
     @State private var isTesting = false
+    @State private var isConnecting = false
 
     init(store: ConnectionStore) {
         _store = State(initialValue: store)
@@ -106,6 +108,15 @@ struct MainWindowView: View {
                         Label("Log", systemImage: "ladybug")
                     }
                     .buttonStyle(.borderless)
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Label("Impostazioni", systemImage: "gearshape")
+                    }
+                    .buttonStyle(.borderless)
+                    .sheet(isPresented: $showSettings) {
+                        SettingsView()
+                    }
                 }
                 .padding(.horizontal, 8)
                 .padding(.bottom, 6)
@@ -176,11 +187,16 @@ struct MainWindowView: View {
     }
 
     private func connect(to profile: ConnectionProfile) {
+        // Evita connessioni concorrenti (tap + selezione lista) che causavano
+        // stati confusi come "Nessuna connessione attiva" durante il tentativo.
+        guard !isConnecting else { return }
+        isConnecting = true
         selectedProfileID = profile.id
         let session = ConnectionSession(profile: profile)
         activeSession = session
         Task {
             await session.connect()
+            isConnecting = false
             if session.errorMessage != nil {
                 activeSession = nil
                 testResult = session.errorMessage

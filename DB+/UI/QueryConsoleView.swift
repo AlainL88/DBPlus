@@ -26,13 +26,15 @@ struct QueryConsoleView: View {
     @State private var showConfirm = false
     @State private var pendingVerdict: SQLGuard.Verdict?
     @State private var confirmProceed = false
+    @State private var exportShareItem: FileShareItem?
+    @State private var completionCandidates: [String] = []
 
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(spacing: 0) {
             toolbar
-            SQLTextEditor(text: $sql)
+            SQLTextEditor(text: $sql, completionCandidates: completionCandidates)
                 .frame(minHeight: 160, maxHeight: 300)
                 .overlay(alignment: .topLeading) {
                     if sql.isEmpty {
@@ -62,6 +64,7 @@ struct QueryConsoleView: View {
         } message: {
             Text("Operazione ad alto rischio rilevata.")
         }
+        .task { await loadCompletionCandidates() }
     }
 
     private var toolbar: some View {
@@ -70,6 +73,7 @@ struct QueryConsoleView: View {
             HStack(spacing: 8) {
                 runButton
                 clearButton
+                exportButton
                 Spacer()
                 Text("Limite righe:")
                     .font(.caption)
@@ -83,6 +87,7 @@ struct QueryConsoleView: View {
                 HStack(spacing: 8) {
                     runButton
                     clearButton
+                    exportButton
                     Spacer()
                     Button("Chiudi") { dismiss() }
                 }
@@ -119,6 +124,18 @@ struct QueryConsoleView: View {
             Label("Svuota", systemImage: "trash")
         }
         .disabled(sql.isEmpty && results.isEmpty)
+    }
+
+    private var exportButton: some View {
+        Button {
+            exportResults()
+        } label: {
+            Label("Esporta", systemImage: "square.and.arrow.up")
+        }
+        .disabled(!results.contains { $0.isSelect })
+        .sheet(item: $exportShareItem) { item in
+            CSVShareSheet(url: item.url)
+        }
     }
 
     private var rowLimitPicker: some View {
@@ -225,6 +242,40 @@ struct QueryConsoleView: View {
             return
         }
         Task { await executeAll() }
+    }
+
+    /// Precarica i candidati per l'autocompletamento: keyword SQL più i
+    /// nomi di schemi e oggetti del database attivo.
+    private func loadCompletionCandidates() async {
+        var candidates = SQLCompletion.keywords
+        do {
+            let transport = try session.requireTransport()
+            let inspector = SchemaInspector(transport: transport)
+            let schemas = try await inspector.schemas()
+            candidates.append(contentsOf: schemas)
+            let active = defaultSchema.isEmpty ? schemas.first : defaultSchema
+            if let active, schemas.contains(active) {
+                let objects = try? await inspector.children(of: active)
+                candidates.append(contentsOf: objects?.map { $0.displayName } ?? [])
+                let columns = try? await inspector.columns(in: active)
+                candidates.append(contentsOf: columns ?? [])
+            }
+        } catch {
+            // Restano le sole keyword.
+        }
+        completionCandidates = candidates
+    }
+
+    private func exportResults() {
+        let content = CSVExporter.csv(results: results)
+        guard !content.isEmpty else { return }
+        #if os(macOS)
+        CSVExporter.saveCSV(content, defaultName: "query_results")
+        #else
+        if let url = try? CSVExporter.writeTempCSV(named: "query_results", content: content) {
+            exportShareItem = FileShareItem(url: url)
+        }
+        #endif
     }
 
     private func executeAll() async {

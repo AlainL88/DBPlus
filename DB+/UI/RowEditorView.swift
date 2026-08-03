@@ -4,6 +4,7 @@
 //
 //  Editor form per inserimento e modifica righe.
 //  In modalità update le colonne PK sono mostrate in sola lettura.
+//  Il toggle NULL esplicita l'inserimento del valore nullo.
 //
 
 import SwiftUI
@@ -16,26 +17,31 @@ enum RowEditorMode {
 struct RowEditorView: View {
     let structure: TableStructure
     let mode: RowEditorMode
-    var onSave: ([String: String]) -> Void
+    var onSave: ([String: String], Set<String>) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var values: [String: String] = [:]
     @State private var nullFlags: Set<String> = []
 
-    init(structure: TableStructure, mode: RowEditorMode, existing: [String: CellValue]?, onSave: @escaping ([String: String]) -> Void) {
+    init(structure: TableStructure, mode: RowEditorMode, existing: [String: CellValue]?, onSave: @escaping ([String: String], Set<String>) -> Void) {
         self.structure = structure
         self.mode = mode
         self.onSave = onSave
 
         var initial: [String: String] = [:]
+        var initialNulls: Set<String> = []
         for column in structure.columns {
             if mode == .update, let existing, let value = existing[column.name] {
+                if value.isNull {
+                    initialNulls.insert(column.name)
+                }
                 initial[column.name] = value.isNull ? "" : value.editString
             } else {
                 initial[column.name] = ""
             }
         }
         _values = State(initialValue: initial)
+        _nullFlags = State(initialValue: initialNulls)
     }
 
     private var editableColumns: [ColumnInfo] {
@@ -72,7 +78,7 @@ struct RowEditorView: View {
                 Button("Annulla") { dismiss() }
                     .keyboardShortcut(.cancelAction)
                 Button(mode == .insert ? "Inserisci" : "Salva") {
-                    onSave(values)
+                    onSave(values, nullFlags)
                     dismiss()
                 }
                 .keyboardShortcut(.defaultAction)
@@ -108,28 +114,44 @@ struct RowEditorView: View {
             }
             .frame(width: 200, alignment: .leading)
 
-            Toggle("NULL", isOn: Binding(
-                get: { isNull },
-                set: { on in
-                    if on {
-                        nullFlags.insert(column.name)
-                    } else {
-                        nullFlags.remove(column.name)
-                    }
+            Button {
+                if isNull { nullFlags.remove(column.name) } else { nullFlags.insert(column.name) }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: isNull ? "checkmark.square.fill" : "square")
+                        .foregroundStyle(isNull ? Color.accentColor : Color.secondary)
+                    Text("NULL")
+                        .font(.system(size: 11, weight: .medium))
                 }
-            ))
-            #if os(macOS)
-            .toggleStyle(.checkbox)
-            #endif
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    isNull ? Color.accentColor.opacity(0.12) : Color.clear,
+                    in: RoundedRectangle(cornerRadius: 6)
+                )
+            }
+            .buttonStyle(.plain)
             .disabled(!isEditable)
 
-            TextField("", text: Binding(
-                get: { values[column.name] ?? "" },
-                set: { values[column.name] = $0 }
-            ))
-            .textFieldStyle(.roundedBorder)
-            .font(.system(size: 12, design: .monospaced))
-            .disabled(!isEditable || isNull)
+            Group {
+                if isNull {
+                    Text("NULL")
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+                } else {
+                    TextField("", text: Binding(
+                        get: { values[column.name] ?? "" },
+                        set: { values[column.name] = $0 }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12, design: .monospaced))
+                }
+            }
+            .disabled(!isEditable)
         }
         .padding(.vertical, 2)
     }

@@ -12,34 +12,14 @@ struct WorkspaceView: View {
     @State private var selectedSchema: String?
     @State private var selectedObject: SchemaNode?
     @State private var showQueryConsole = false
-    @State private var showBenchmark = false
-    @State private var showConnectionLost = false
     @State private var showRetryFailed = false
+    @State private var isReconnecting = false
 
     var body: some View {
         content
-            .toolbar {
-                ToolbarItemGroup {
-                    Button {
-                        showQueryConsole = true
-                    } label: {
-                        Label("Query", systemImage: "chevron.left.forwardslash.chevron.right")
-                    }
-                    .help("Apri la console SQL")
-
-                    Button {
-                        showBenchmark = true
-                    } label: {
-                        Label("Benchmark", systemImage: "gauge.with.dots.needle.50percent")
-                    }
-                    .help("Esegui benchmarking")
-
-                    Button {
-                        onDisconnect()
-                    } label: {
-                        Label("Disconnetti", systemImage: "power")
-                    }
-                    .help("Chiudi la connessione")
+            .overlay {
+                if session.isConnecting {
+                    ConnectingView(message: "Connessione in corso…")
                 }
             }
             .sheet(isPresented: $showQueryConsole) {
@@ -48,20 +28,8 @@ struct WorkspaceView: View {
                     .frame(minWidth: 900, minHeight: 620)
                     #endif
             }
-            .sheet(isPresented: $showBenchmark) {
-                BenchmarkView(session: session, defaultSchema: activeSchema)
-                    #if os(macOS)
-                    .frame(minWidth: 860, minHeight: 560)
-                    #endif
-            }
             .onChange(of: session.connectionLost) { _, lost in
-                if lost { showConnectionLost = true }
-            }
-            .alert("Connessione persa", isPresented: $showConnectionLost) {
-                Button("Riprova") { Task { await retryConnection() } }
-                Button("Torna indietro", role: .cancel) { onDisconnect() }
-            } message: {
-                Text("La connessione al server è scaduta. Riprova oppure torna alla lista delle connessioni.")
+                if lost { Task { await autoRetry() } }
             }
             .alert("Impossibile riconnettere", isPresented: $showRetryFailed) {
                 Button("OK") { onDisconnect() }
@@ -78,9 +46,12 @@ struct WorkspaceView: View {
         return session.profile.defaultSchema
     }
 
-    /// Tenta di riconnettere dopo una perdita di connessione; se fallisce,
-    /// mostra un secondo avviso e torna indietro.
-    private func retryConnection() async {
+    /// Ritenta automaticamente la connessione dopo una perdita; se fallisce
+    /// anche il retry, mostra un avviso e torna indietro.
+    private func autoRetry() async {
+        guard !isReconnecting else { return }
+        isReconnecting = true
+        defer { isReconnecting = false }
         await session.disconnect()
         session.connectionLost = false
         await session.connect()
@@ -90,20 +61,46 @@ struct WorkspaceView: View {
     }
 
     /// Su iOS (compact) una NavigationSplitView annidata dentro l'altra non
-    /// presenta il dettaglio alla selezione: usiamo una NavigationStack con
-    /// navigationDestination, che spinge la TableDetailView.
+    /// presenta il dettaglio alla selezione: usiamo una NavigationStack a due
+    /// livelli — elenco database → oggetti dello schema → dettaglio tabella.
     @ViewBuilder
     private var content: some View {
         #if os(iOS)
         NavigationStack {
-            SchemaNavigatorView(
-                session: session,
-                selectedSchema: $selectedSchema,
-                selectedObject: $selectedObject
-            )
-            .navigationDestination(item: $selectedObject) { node in
-                detailView(for: node)
-            }
+            DatabaseListView(session: session, onSelect: { selectedSchema = $0 })
+                .navigationDestination(item: $selectedSchema) { schema in
+                    SchemaObjectsView(session: session, schema: schema, onSelect: { selectedObject = $0 })
+                        .navigationDestination(item: $selectedObject) { node in
+                            detailView(for: node)
+                        }
+                        .toolbar {
+                            ToolbarItemGroup {
+                                Button {
+                                    showQueryConsole = true
+                                } label: {
+                                    Label("Query", systemImage: "chevron.left.forwardslash.chevron.right")
+                                }
+                                .help("Apri la console SQL")
+
+                                Button {
+                                    onDisconnect()
+                                } label: {
+                                    Label("Disconnetti", systemImage: "power")
+                                }
+                                .help("Chiudi la connessione")
+                            }
+                        }
+                }
+                .toolbar {
+                    ToolbarItemGroup {
+                        Button {
+                            onDisconnect()
+                        } label: {
+                            Label("Disconnetti", systemImage: "power")
+                        }
+                        .help("Chiudi la connessione")
+                    }
+                }
         }
         #else
         NavigationSplitView {
@@ -115,6 +112,23 @@ struct WorkspaceView: View {
             .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 340)
         } detail: {
             detailView
+        }
+        .toolbar {
+            ToolbarItemGroup {
+                Button {
+                    showQueryConsole = true
+                } label: {
+                    Label("Query", systemImage: "chevron.left.forwardslash.chevron.right")
+                }
+                .help("Apri la console SQL")
+
+                Button {
+                    onDisconnect()
+                } label: {
+                    Label("Disconnetti", systemImage: "power")
+                }
+                .help("Chiudi la connessione")
+            }
         }
         #endif
     }

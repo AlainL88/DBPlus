@@ -85,9 +85,8 @@ struct DataGridView: View {
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
             }
-            .frame(width: columnWidth, alignment: .leading)
             .padding(.horizontal, 6)
-            .frame(height: 28)
+            .frame(width: columnWidth, height: 28, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -136,7 +135,7 @@ struct DataGridView: View {
         }()
 
         return HStack(spacing: 0) {
-            ZStack {
+            ZStack(alignment: .topLeading) {
                 bg
                 if isEditing {
                     TextField("", text: $editText)
@@ -151,16 +150,18 @@ struct DataGridView: View {
                         }
                         #endif
                         .padding(.horizontal, 6)
+                        .padding(.vertical, 5)
                 } else {
                     Text(display(value, at: col))
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(value.isNull ? Color.secondary.opacity(0.6) : .primary)
                         .lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 6)
+                        .padding(.vertical, 5)
+                        .frame(maxWidth: .infinity, minHeight: 24, alignment: .topLeading)
                 }
             }
-            .frame(width: columnWidth, height: 24, alignment: .leading)
+            .frame(width: columnWidth, height: 24, alignment: .topLeading)
             .overlay(alignment: .bottom) { Divider().opacity(0.3) }
             .overlay(alignment: .leading) { Divider().opacity(0.3) }
         }

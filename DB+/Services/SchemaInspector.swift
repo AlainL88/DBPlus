@@ -27,4 +27,20 @@ struct SchemaInspector {
         }
         return nodes
     }
+
+    /// Nomi delle colonne di tutti gli oggetti di uno schema (per l'autocompletamento).
+    func columns(in schema: String) async throws -> [String] {
+        let escaped = schema.replacingOccurrences(of: "'", with: "''")
+        let sql = """
+        SELECT COLUMN_NAME
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = '\(escaped)'
+        ORDER BY TABLE_NAME, ORDINAL_POSITION
+        """
+        let result = try await transport.execute(StatementRequest(sql: sql, rowLimit: 20000))
+        return result.rows.compactMap { row in
+            guard let value = row.first, case .string(let name) = value else { return nil }
+            return name
+        }
+    }
 }

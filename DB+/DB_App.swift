@@ -12,6 +12,8 @@ import FirebaseCrashlytics
 @main
 struct DB_App: App {
     @State private var store = ConnectionStore()
+    @State private var isUnlocked = false
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         FirebaseApp.configure()
@@ -20,10 +22,22 @@ struct DB_App: App {
 
     var body: some Scene {
         WindowGroup {
-            MainWindowView(store: store)
-                #if os(macOS)
-                .frame(minWidth: 1080, minHeight: 680)
-                #endif
+            Group {
+                if isUnlocked || !AppSettings.requireBiometricLock {
+                    MainWindowView(store: store)
+                        #if os(macOS)
+                        .frame(minWidth: 1080, minHeight: 680)
+                        #endif
+                } else {
+                    LockedView(onUnlock: { isUnlocked = true })
+                }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                // Riblocca quando l'app va in background / viene nascosta.
+                if phase == .background {
+                    isUnlocked = false
+                }
+            }
         }
     }
 }

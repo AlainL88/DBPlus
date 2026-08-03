@@ -28,6 +28,7 @@ struct TableDetailView: View {
     @State private var showInsertEditor = false
     @State private var showDeleteConfirm = false
     @State private var statusMessage: String?
+    @State private var exportShareItem: FileShareItem?
 
     private var tableName: String { node.displayName }
 
@@ -57,14 +58,17 @@ struct TableDetailView: View {
         .task { await loadInitial() }
         .sheet(isPresented: $showInsertEditor) {
             if let structure {
-                RowEditorView(structure: structure, mode: .insert, existing: nil) { textMap in
+                RowEditorView(structure: structure, mode: .insert, existing: nil) { textMap, nulls in
                     showInsertEditor = false
                     var values: [String: CellValue] = [:]
                     for column in structure.columns {
-                        guard let text = textMap[column.name] else { continue }
                         let header = ColumnHeader(name: column.name, typeName: column.columnType,
                                                   isUnsigned: column.isUnsigned, index: column.ordinal - 1)
-                        values[column.name] = CellValue.fromEditString(text, asHeader: header)
+                        if nulls.contains(column.name) {
+                            values[column.name] = .null
+                        } else if let text = textMap[column.name] {
+                            values[column.name] = CellValue.fromEditString(text, asHeader: header)
+                        }
                     }
                     performInsert(values)
                 }
@@ -182,6 +186,11 @@ struct TableDetailView: View {
             Button { showInsertEditor = true } label: { Label("Nuova riga", systemImage: "plus") }
                 .disabled(isView)
             Button { Task { await reload() } } label: { Label("Ricarica", systemImage: "arrow.clockwise") }
+            Button { exportData() } label: { Label("Esporta", systemImage: "square.and.arrow.up") }
+                .disabled(page.rows.isEmpty)
+                .sheet(item: $exportShareItem) { item in
+                    CSVShareSheet(url: item.url)
+                }
             Button(role: .destructive) { showDeleteConfirm = true } label: { Label("Elimina riga", systemImage: "trash") }
                 .disabled(selectedRowIndex == nil || isView)
         }
@@ -405,6 +414,17 @@ struct TableDetailView: View {
                 statusMessage = error.localizedDescription
             }
         }
+    }
+
+    private func exportData() {
+        let content = CSVExporter.csv(columns: page.columns, rows: page.rows)
+        #if os(macOS)
+        CSVExporter.saveCSV(content, defaultName: "\(tableName)_data")
+        #else
+        if let url = try? CSVExporter.writeTempCSV(named: tableName, content: content) {
+            exportShareItem = FileShareItem(url: url)
+        }
+        #endif
     }
 
     private func performDelete() {
