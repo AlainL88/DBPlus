@@ -21,7 +21,12 @@ if [ -z "${CI_ARCHIVE_PATH:-}" ] || [ ! -d "$CI_ARCHIVE_PATH/dSYMs" ]; then
 fi
 
 UPLOAD_SYMBOLS="${CI_DERIVED_DATA_PATH:-}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/upload-symbols"
-GSP="${CI_WORKSPACE:-}/DB+/GoogleService-Info.plist"
+
+# Radice del repo ricavata dalla posizione dello script (ci_scripts/ e' dentro il repo).
+# Non usiamo CI_WORKSPACE: su Xcode Cloud non viene valorizzato nel contesto ci_scripts.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+GSP="$REPO_ROOT/DB+/GoogleService-Info.plist"
 
 if [ ! -x "$UPLOAD_SYMBOLS" ]; then
   echo "Crashlytics: ERROR upload-symbols non trovato in $UPLOAD_SYMBOLS"
@@ -32,6 +37,8 @@ if [ ! -f "$GSP" ]; then
   exit 1
 fi
 
+echo "Crashlytics: upload-symbols = $UPLOAD_SYMBOLS"
+echo "Crashlytics: GoogleService-Info.plist = $GSP"
 echo "Crashlytics: upload dSYM da $CI_ARCHIVE_PATH/dSYMs"
 find "$CI_ARCHIVE_PATH/dSYMs" -maxdepth 1 -name "*.dSYM" | while IFS= read -r dsym; do
   echo "Crashlytics: upload $dsym"
