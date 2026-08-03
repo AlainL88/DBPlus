@@ -172,28 +172,16 @@ struct TableDetailView: View {
                 .id("\(cell.row):\(cell.col)")
             }
             Divider()
-            paginationBar
+            bottomBar
         }
     }
 
     private var dataToolbar: some View {
-        ViewThatFits(in: .horizontal) {
-            // Layout ampio (macOS): filtro e azioni in una riga.
-            HStack(spacing: 8) {
-                filterField
-                    .frame(width: 280)
-                Button("Applica") { applyFilter() }
-                Spacer()
-                actionButtons
-            }
-            // Layout stretto (iPhone): filtro sopra, azioni sotto.
-            VStack(spacing: 8) {
-                HStack(spacing: 8) {
-                    filterField
-                    Button("Applica") { applyFilter() }
-                }
-                actionButtons
-            }
+        HStack(spacing: 8) {
+            filterField
+                .frame(maxWidth: 280)
+            Button("Applica") { applyFilter() }
+            Spacer()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -205,32 +193,18 @@ struct TableDetailView: View {
             .onSubmit { applyFilter() }
     }
 
-    private var actionButtons: some View {
-        HStack(spacing: 8) {
-            Button { showInsertEditor = true } label: { Label("Nuova riga", systemImage: "plus") }
-                .disabled(isView)
-            Button { Task { await reload() } } label: { Label("Ricarica", systemImage: "arrow.clockwise") }
-            Button { exportData() } label: { Label("Esporta", systemImage: "square.and.arrow.up") }
-                .disabled(page.rows.isEmpty)
-                .sheet(item: $exportShareItem) { item in
-                    CSVShareSheet(url: item.url)
-                }
-            Button(role: .destructive) { showDeleteConfirm = true } label: { Label("Elimina riga", systemImage: "trash") }
-                .disabled(selectedRowIndex == nil || isView)
-        }
-    }
-
     private func applyFilter() {
         page = TablePage(columns: page.columns, rows: [], total: 0, offset: 0, limit: 200)
         Task { await reload() }
     }
 
-    private var paginationBar: some View {
-        HStack {
+    private var bottomBar: some View {
+        HStack(spacing: 12) {
             Text("\(page.total) righe")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
+            // Paginazione
             Button {
                 page = TablePage(columns: page.columns, rows: [], total: page.total, offset: max(0, page.offset - page.limit), limit: page.limit)
                 Task { await reload() }
@@ -248,6 +222,24 @@ struct TableDetailView: View {
                 Image(systemName: "chevron.right")
             }
             .disabled(page.offset + page.limit >= page.total)
+            Rectangle()
+                .fill(Color.separatorLine)
+                .frame(width: 1, height: 16)
+            // Azioni (solo icone)
+            Button { showInsertEditor = true } label: { Image(systemName: "plus") }
+                .disabled(isView)
+                .help("Nuova riga")
+            Button { Task { await reload() } } label: { Image(systemName: "arrow.clockwise") }
+                .help("Ricarica")
+            Button { exportData() } label: { Image(systemName: "square.and.arrow.up") }
+                .disabled(page.rows.isEmpty)
+                .help("Esporta")
+                .sheet(item: $exportShareItem) { item in
+                    CSVShareSheet(url: item.url)
+                }
+            Button(role: .destructive) { showDeleteConfirm = true } label: { Image(systemName: "trash") }
+                .disabled(selectedRowIndex == nil || isView)
+                .help("Elimina riga")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
