@@ -39,6 +39,9 @@ struct DataGridView: View {
                     headerView
                 }
             }
+            // In uno ScrollView bidirezionale SwiftUI centra il contenuto se più piccolo
+            // del viewport; questo frame forza l'allineamento in alto a sinistra.
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .background(Color.gridBackground)
         #if os(macOS)
