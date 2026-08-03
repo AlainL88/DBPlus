@@ -121,7 +121,11 @@ struct TableDetailView: View {
         VStack(spacing: 0) {
             dataToolbar
             Divider()
-            if page.rows.isEmpty && !isLoading {
+            if isLoading && page.rows.isEmpty {
+                ProgressView("Caricamento…")
+                    .controlSize(.large)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if page.rows.isEmpty {
                 ContentUnavailableView(
                     "Nessuna riga",
                     systemImage: "table",

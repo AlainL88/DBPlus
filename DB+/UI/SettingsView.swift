@@ -10,6 +10,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("requireBiometricLock") private var requireBiometricLock = true
+    @State private var showDebugLog = false
 
     var body: some View {
         NavigationStack {
@@ -23,6 +24,13 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                Section("Debug") {
+                    Button {
+                        showDebugLog = true
+                    } label: {
+                        Label("Log di debug", systemImage: "ladybug")
+                    }
+                }
             }
             .navigationTitle("Impostazioni")
             #if os(iOS)
@@ -35,5 +43,8 @@ struct SettingsView: View {
             }
         }
         .frame(minWidth: 380, minHeight: 260)
+        .sheet(isPresented: $showDebugLog) {
+            DebugLogView(log: DebugLog.shared)
+        }
     }
 }

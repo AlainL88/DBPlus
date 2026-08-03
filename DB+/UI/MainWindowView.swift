@@ -10,9 +10,7 @@ struct MainWindowView: View {
     @State private var activeSession: ConnectionSession?
     @State private var selectedProfileID: UUID?
     @State private var showNewEditor = false
-    @State private var showDebugLog = false
     @State private var showSettings = false
-    @State private var debugLog = DebugLog.shared
     @State private var editingProfile: ConnectionProfile?
     @State private var testResult: String?
     @State private var isTesting = false
@@ -48,9 +46,6 @@ struct MainWindowView: View {
                 selectedProfileID = updated.id
                 showNewEditor = false
             }
-        }
-        .sheet(isPresented: $showDebugLog) {
-            DebugLogView(log: debugLog)
         }
     }
 
@@ -102,12 +97,6 @@ struct MainWindowView: View {
                     }
                     .buttonStyle(.borderless)
                     Spacer()
-                    Button {
-                        showDebugLog = true
-                    } label: {
-                        Label("Log", systemImage: "ladybug")
-                    }
-                    .buttonStyle(.borderless)
                     Button {
                         showSettings = true
                     } label: {
@@ -218,7 +207,10 @@ struct MainWindowView: View {
     }
 
     private func disconnect() async {
-        await activeSession?.disconnect()
+        // Torna subito alla pagina iniziale; la chiusura della sessione prosegue in
+        // background (il teardown del tunnel SSH può richiedere tempo o bloccarsi).
+        let session = activeSession
         activeSession = nil
+        await session?.disconnect()
     }
 }
