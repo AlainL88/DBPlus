@@ -16,7 +16,8 @@ struct QueryConsoleView: View {
         self.session = session
         self.defaultSchema = defaultSchema
         _activeSchema = State(initialValue: defaultSchema)
-        DebugLog.shared.log("[DB+DEBUG] QueryConsole init: defaultSchema ricevuto = '\(defaultSchema)'")
+        // NB: niente DebugLog in init — loggare qui amplificava un loop di
+        // ricreazione della sheet (vedi DebugLog.swift).
     }
 
     @State private var sql = ""

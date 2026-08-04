@@ -8,9 +8,12 @@
 //
 
 import Foundation
-import Observation
 
-@Observable
+// IMPORTANTE: NIENTE @Observable qui. `log()` viene chiamato decine di volte
+// al secondo dai thread NIO del tunnel; se DebugLog fosse osservabile, ogni
+// append innescava un re-render SwiftUI che RICREAVA la .sheet della console
+// SQL (init in loop → centinaia di UITextView → main thread bloccato → crash).
+// DebugLogView aggiorna la UI con un polling, non con l'osservazione.
 final class DebugLog {
     static let shared = DebugLog()
 
