@@ -90,39 +90,45 @@ struct MainWindowView: View {
             .padding(.top, 8)
             .padding(.bottom, 4)
 
-            ScrollView {
-                VStack(spacing: 12) {
-                    ForEach(store.profiles) { profile in
-                        ConnectionCardView(
-                            profile: profile,
-                            isActive: activeSession?.profile.id == profile.id,
-                            isConnecting: isConnecting && activeSession?.profile.id == profile.id,
-                            onConnect: { connect(to: profile) },
-                            onTest: { test(profile) },
-                            onEdit: { editingProfile = profile },
-                            onDelete: { store.remove(profile) }
-                        )
-                    }
-                    Button {
-                        editingProfile = nil
-                        showNewEditor = true
-                    } label: {
-                        Label("Nuova connessione", systemImage: "plus")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.tint)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 16))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [6]))
-                                    .foregroundStyle(.tint.opacity(0.5))
-                            )
-                    }
-                    .buttonStyle(.plain)
+            // List (non ScrollView): serve per le swipeActions sulla cella.
+            List {
+                ForEach(store.profiles) { profile in
+                    ConnectionCardView(
+                        profile: profile,
+                        isActive: activeSession?.profile.id == profile.id,
+                        isConnecting: isConnecting && activeSession?.profile.id == profile.id,
+                        onConnect: { connect(to: profile) },
+                        onTest: { test(profile) },
+                        onEdit: { editingProfile = profile },
+                        onDelete: { store.remove(profile) }
+                    )
+                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 }
-                .padding(16)
+                Button {
+                    editingProfile = nil
+                    showNewEditor = true
+                } label: {
+                    Label("Nuova connessione", systemImage: "plus")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.tint)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: 16))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [6]))
+                                .foregroundStyle(.tint.opacity(0.5))
+                        )
+                }
+                .buttonStyle(.plain)
+                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
         }
         .background(Color.groupedBackground)
         .safeAreaInset(edge: .bottom) {

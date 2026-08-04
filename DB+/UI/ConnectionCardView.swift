@@ -53,6 +53,19 @@ struct ConnectionCardView: View {
             Button("Modifica…", systemImage: "pencil") { onEdit() }
             Button("Elimina", systemImage: "trash", role: .destructive) { onDelete() }
         }
+        // Swipe a sinistra sulla cella → Elimina / Modifica / Test.
+        // allowsFullSwipe: false per evitare eliminazioni accidentali.
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) { onDelete() } label: {
+                Label("Elimina", systemImage: "trash")
+            }
+            Button { onEdit() } label: {
+                Label("Modifica", systemImage: "pencil")
+            }
+            Button { onTest() } label: {
+                Label("Test", systemImage: "bolt")
+            }
+        }
     }
 
     // MARK: - Componenti

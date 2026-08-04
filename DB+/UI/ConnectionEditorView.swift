@@ -12,6 +12,8 @@ struct ConnectionEditorView: View {
 
     @State private var showKeyImporter = false
     @State private var showKeyGenerator = false
+    @State private var testResult: String?
+    @State private var isTesting = false
 
     /// Modalità disponibili su questa piattaforma (tutte, incluso il tunnel SSH).
     private var availableModes: [ConnectionMode] {
@@ -246,14 +248,34 @@ struct ConnectionEditorView: View {
     }
 
     private var footer: some View {
-        HStack {
-            Spacer()
-            Button("Annulla") { dismiss() }
-                .keyboardShortcut(.cancelAction)
-            Button("Salva") { save() }
-                .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
-                .disabled(name.isEmpty || host.isEmpty)
+        VStack(alignment: .leading, spacing: 8) {
+            if let testResult {
+                Text(testResult)
+                    .font(.caption)
+                    .foregroundStyle(testResult.hasPrefix("OK") ? .green : .red)
+                    .lineLimit(3)
+            }
+            HStack {
+                Button {
+                    Task { await runTest() }
+                } label: {
+                    if isTesting {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Label("Testa connessione", systemImage: "bolt")
+                    }
+                }
+                .disabled(isTesting || !canTest)
+                .help("Prova la connessione con i dati inseriti, prima di salvare.")
+                Spacer()
+                Button("Annulla") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Salva") { save() }
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(name.isEmpty || host.isEmpty)
+            }
         }
         .padding()
     }
@@ -284,7 +306,8 @@ struct ConnectionEditorView: View {
         #endif
     }
 
-    private func save() {
+    /// Costruisce il profilo dai campi correnti del form.
+    private func buildProfile() -> ConnectionProfile {
         var profile = ConnectionProfile()
         if let profileID { profile.id = profileID }
         profile.name = name
@@ -304,6 +327,11 @@ struct ConnectionEditorView: View {
         profile.sshUsePassphrase = sshUsePassphrase
         profile.bridgeURL = bridgeURL
         profile.bridgeUseHMAC = bridgeUseHMAC
+        return profile
+    }
+
+    private func save() {
+        let profile = buildProfile()
 
         // Persistenza segreti: non vuoti → salva; vuoti → rimuovi.
         persist(secret: dbPassword, kind: .databasePassword, for: profile)
@@ -313,6 +341,31 @@ struct ConnectionEditorView: View {
         persist(secret: bridgeHMACSecret, kind: .bridgeHMACSecret, for: profile)
 
         onSave(profile)
+    }
+
+    /// Il test si può avviare quando il campo minimo della modalità è compilato.
+    private var canTest: Bool {
+        switch mode {
+        case .direct: return !host.isEmpty
+        case .ssh: return !sshHost.isEmpty
+        case .bridge: return !bridgeURL.isEmpty
+        }
+    }
+
+    /// Testa la connessione con i valori correnti del form, usando i segreti
+    /// digitati (non ancora salvati nel Keychain).
+    private func runTest() async {
+        isTesting = true
+        testResult = nil
+        defer { isTesting = false }
+        let session = ConnectionSession(profile: buildProfile())
+        testResult = await session.testConnection(
+            databasePassword: dbPassword.isEmpty ? nil : dbPassword,
+            sshPassword: sshPassword.isEmpty ? nil : sshPassword,
+            sshPassphrase: sshPassphrase.isEmpty ? nil : sshPassphrase,
+            bridgeToken: bridgeToken.isEmpty ? nil : bridgeToken,
+            bridgeHMACSecret: bridgeHMACSecret.isEmpty ? nil : bridgeHMACSecret
+        )
     }
 
     private func persist(secret: String, kind: SecretKind, for profile: ConnectionProfile) {

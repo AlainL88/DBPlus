@@ -97,10 +97,23 @@ final class ConnectionSession {
     }
 
     /// Test di connessione con feedback dettagliato (latenza, versione, modalità).
-    func testConnection() async -> String {
+    /// I parametri espliciti sovrascrivono i segreti del Keychain (usati
+    /// dall'editor di connessione per testare credenziali non ancora salvate).
+    func testConnection(databasePassword: String? = nil,
+                        sshPassword: String? = nil,
+                        sshPassphrase: String? = nil,
+                        bridgeToken: String? = nil,
+                        bridgeHMACSecret: String? = nil) async -> String {
         isConnecting = true
         defer { isConnecting = false }
         let startAll = DispatchTime.now()
+
+        // Segreti effettivi: quelli espliciti oppure quelli caricati dal Keychain.
+        let dbPassword = databasePassword ?? secrets.databasePassword
+        let sshPwd = sshPassword ?? secrets.sshPassword
+        let sshPhrase = sshPassphrase ?? secrets.sshPassphrase
+        let token = bridgeToken ?? secrets.bridgeToken
+        let hmac = bridgeHMACSecret ?? secrets.bridgeHMACSecret
 
         DebugLog.shared.log("[DB+DEBUG] testConnection() inizio — mode=\(profile.mode.displayName) host=\(profile.host):\(profile.port) useTLS=\(profile.useTLS) ssh=\(profile.sshHost):\(profile.sshPort) auth=\(profile.sshAuthType.displayName)")
 
@@ -118,19 +131,19 @@ final class ConnectionSession {
         let testTransport: any DatabaseTransport
         switch profile.mode {
         case .direct:
-            testTransport = DirectTransport(profile: profile, password: secrets.databasePassword)
+            testTransport = DirectTransport(profile: profile, password: dbPassword)
         case .ssh:
             testTransport = SSHTransport(
                 profile: profile,
-                databasePassword: secrets.databasePassword,
-                sshPassword: secrets.sshPassword,
-                sshPassphrase: secrets.sshPassphrase
+                databasePassword: dbPassword,
+                sshPassword: sshPwd,
+                sshPassphrase: sshPhrase
             )
         case .bridge:
             testTransport = BridgeTransport(
                 profile: profile,
-                token: secrets.bridgeToken,
-                hmacSecret: secrets.bridgeHMACSecret
+                token: token,
+                hmacSecret: hmac
             )
         }
         DebugLog.shared.log("[DB+DEBUG] testConnection() transport creato: \(type(of: testTransport))")
