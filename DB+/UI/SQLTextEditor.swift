@@ -50,7 +50,8 @@ private func isWordCharacter(_ c: unichar) -> Bool {
 enum CompletionContext: Sendable {
     case start   // inizio query → statement
     case table   // dopo FROM/JOIN/UPDATE/… → nome tabella
-    case column  // dopo SELECT/WHERE/ON/… → colonna o keyword
+    case column  // dopo WHERE/ON/AND/… → colonna o keyword
+    case select  // dopo SELECT (o virgola nella lista): colonne o "*"
 }
 
 /// Clausole dopo le quali ci si aspetta un nome di tabella.
@@ -69,10 +70,13 @@ private let columnContextKeywords: Set<String> = [
 private func completionContext(before text: String) -> CompletionContext {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return .start }
+    // Dopo una virgola si continua la lista della SELECT (colonna o "*").
+    if trimmed.hasSuffix(",") { return .select }
     let words = trimmed.split(whereSeparator: {
         $0 == " " || $0 == "," || $0 == "(" || $0 == ")" || $0 == "\n" || $0 == "\t"
     })
     guard let last = words.last?.uppercased() else { return .start }
+    if last == "SELECT" { return .select }
     if tableContextKeywords.contains(last) { return .table }
     if columnContextKeywords.contains(last) { return .column }
     return .column
@@ -92,6 +96,7 @@ func completionPool(_ context: CompletionContext,
     case .start: return keywords
     case .table: return tables
     case .column: return columns + keywords
+    case .select: return columns + keywords
     }
 }
 
@@ -105,6 +110,8 @@ func proactiveSuggestions(_ context: CompletionContext,
         return Array(tables.prefix(8))
     case .column:
         return Array(columns.prefix(6)) + ["FROM", "WHERE", "AND", "OR", "ORDER BY", "GROUP BY", "LIMIT"]
+    case .select:
+        return ["*"] + Array(columns.prefix(6)) + ["FROM"]
     }
 }
 
