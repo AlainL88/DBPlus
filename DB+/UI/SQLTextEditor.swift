@@ -15,6 +15,13 @@ import SwiftUI
 
 /// Parole chiave SQL suggerite in fase di digitazione.
 enum SQLCompletion {
+    /// Statement più comuni mostrati prima ancora di digitare, quando il
+    /// cursore non è dentro una parola (barra dei suggerimenti su iOS).
+    static let starters: [String] = [
+        "SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "ALTER",
+        "DROP", "SHOW", "EXPLAIN", "USE",
+    ]
+
     static let keywords: [String] = [
         "SELECT", "FROM", "WHERE", "INSERT", "INTO", "VALUES", "UPDATE", "SET",
         "DELETE", "CREATE", "TABLE", "DROP", "ALTER", "INDEX", "PRIMARY", "KEY",
@@ -37,13 +44,79 @@ private func isWordCharacter(_ c: unichar) -> Bool {
     return allowed.contains(scalar)
 }
 
+// MARK: - Contesto di completamento
+
+/// Contesto del cursore: cosa ci si aspetta di digitare qui.
+enum CompletionContext: Sendable {
+    case start   // inizio query → statement
+    case table   // dopo FROM/JOIN/UPDATE/… → nome tabella
+    case column  // dopo SELECT/WHERE/ON/… → colonna o keyword
+}
+
+/// Clausole dopo le quali ci si aspetta un nome di tabella.
+private let tableContextKeywords: Set<String> = [
+    "FROM", "INTO", "UPDATE", "JOIN", "INNER", "LEFT", "RIGHT", "FULL",
+    "TABLE", "REFERENCES", "SHOW", "DESCRIBE", "EXPLAIN",
+]
+
+/// Clausole dopo le quali ci si aspetta una colonna (o keyword).
+private let columnContextKeywords: Set<String> = [
+    "SELECT", "WHERE", "ON", "AND", "OR", "SET", "GROUP", "ORDER", "HAVING",
+    "BY", "VALUES", "VALUE", "AS", "BETWEEN", "LIKE", "IN", "IS", "NOT",
+]
+
+/// Determina il contesto di completamento dal testo prima del cursore.
+private func completionContext(before text: String) -> CompletionContext {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return .start }
+    let words = trimmed.split(whereSeparator: {
+        $0 == " " || $0 == "," || $0 == "(" || $0 == ")" || $0 == "\n" || $0 == "\t"
+    })
+    guard let last = words.last?.uppercased() else { return .start }
+    if tableContextKeywords.contains(last) { return .table }
+    if columnContextKeywords.contains(last) { return .column }
+    return .column
+}
+
+/// Contesto di completamento nel testo, escludendo la parola parziale al cursore.
+func completionContext(in text: String, at partialStart: Int) -> CompletionContext {
+    let ns = text as NSString
+    let before = ns.substring(to: min(partialStart, ns.length))
+    return completionContext(before: before)
+}
+
+/// Pool di candidati per il prefix match, coerente col contesto.
+func completionPool(_ context: CompletionContext,
+                    keywords: [String], tables: [String], columns: [String]) -> [String] {
+    switch context {
+    case .start: return keywords
+    case .table: return tables
+    case .column: return columns + keywords
+    }
+}
+
+/// Suggerimenti proattivi quando il cursore non è dentro una parola.
+func proactiveSuggestions(_ context: CompletionContext,
+                          tables: [String], columns: [String]) -> [String] {
+    switch context {
+    case .start:
+        return SQLCompletion.starters
+    case .table:
+        return Array(tables.prefix(8))
+    case .column:
+        return Array(columns.prefix(6)) + ["FROM", "WHERE", "AND", "OR", "ORDER BY", "GROUP BY", "LIMIT"]
+    }
+}
+
 #if os(macOS)
 
 import AppKit
 
 struct SQLTextEditor: NSViewRepresentable {
     @Binding var text: String
-    var completionCandidates: [String] = []
+    var completionKeywords: [String] = []
+    var completionTables: [String] = []
+    var completionColumns: [String] = []
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -110,10 +183,16 @@ struct SQLTextEditor: NSViewRepresentable {
                       completions words: [String],
                       forPartialWordRange charRange: NSRange,
                       indexOfSelectedItem index: UnsafeMutablePointer<Int>?) -> [String] {
-            guard !parent.completionCandidates.isEmpty else { return words }
+            // Pool di candidati coerente col contesto della query.
+            let context = completionContext(in: textView.string, at: charRange.location)
+            let pool = completionPool(context,
+                                      keywords: parent.completionKeywords,
+                                      tables: parent.completionTables,
+                                      columns: parent.completionColumns)
+            guard !pool.isEmpty else { return words }
             let partial = (textView.string as NSString).substring(with: charRange)
             let lower = partial.lowercased()
-            let filtered = parent.completionCandidates
+            let filtered = pool
                 .filter { $0.lowercased().hasPrefix(lower) && $0.caseInsensitiveCompare(partial) != .orderedSame }
                 .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
             index?.pointee = 0
@@ -133,12 +212,17 @@ struct SQLTextEditor: NSViewRepresentable {
         }
 
         private func maybeTriggerCompletion(_ textView: NSTextView) {
-            guard !parent.completionCandidates.isEmpty else { return }
             let location = textView.selectedRange().location
             let partial = partialWord(at: location, in: textView.string)
             guard partial.count >= 2 else { return }
+            let context = completionContext(in: textView.string, at: location - partial.count)
+            let pool = completionPool(context,
+                                      keywords: parent.completionKeywords,
+                                      tables: parent.completionTables,
+                                      columns: parent.completionColumns)
+            guard !pool.isEmpty else { return }
             let lower = partial.lowercased()
-            let hasMatches = parent.completionCandidates.contains {
+            let hasMatches = pool.contains {
                 $0.lowercased().hasPrefix(lower) && $0.caseInsensitiveCompare(partial) != .orderedSame
             }
             if hasMatches {
@@ -163,7 +247,9 @@ import UIKit
 
 struct SQLTextEditor: UIViewRepresentable {
     @Binding var text: String
-    var completionCandidates: [String] = []
+    var completionKeywords: [String] = []
+    var completionTables: [String] = []
+    var completionColumns: [String] = []
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -290,19 +376,31 @@ struct SQLTextEditor: UIViewRepresentable {
             let location = textView.selectedRange.location
             let (partial, range) = partialWord(at: location, in: textView.text)
 
-            // Candidati non ancora caricati oppure cursore non dentro una parola:
-            // la barra resta vuota (resta visibile solo il pulsante di chiusura).
-            guard !parent.completionCandidates.isEmpty, !partial.isEmpty else { return }
+            // Contesto della query per suggerimenti coerenti: all'inizio →
+            // statement, dopo FROM/JOIN → tabelle, dopo SELECT/WHERE → colonne.
+            let context = completionContext(in: textView.text, at: range.location)
+            let keywords = parent.completionKeywords
+            let tables = parent.completionTables
+            let columns = parent.completionColumns
 
-            let lower = partial.lowercased()
-            let matches = parent.completionCandidates
-                .filter { $0.lowercased().hasPrefix(lower) && $0.caseInsensitiveCompare(partial) != .orderedSame }
-                .prefix(8)
-
+            // Suggerimenti "intelligenti": prima di digitare mostra le opzioni
+            // coerenti con quello che stai scrivendo, non keyword a caso.
+            let matches: [String]
+            if partial.isEmpty {
+                matches = proactiveSuggestions(context, tables: tables, columns: columns)
+            } else {
+                let lower = partial.lowercased()
+                matches = completionPool(context, keywords: keywords, tables: tables, columns: columns)
+                    .filter { $0.lowercased().hasPrefix(lower) && $0.caseInsensitiveCompare(partial) != .orderedSame }
+                    .prefix(8)
+                    .map { $0 }
+            }
             guard !matches.isEmpty else { return }
 
-            partialLabel.text = partial
-            stack.addArrangedSubview(partialLabel)
+            if !partial.isEmpty {
+                partialLabel.text = partial
+                stack.addArrangedSubview(partialLabel)
+            }
 
             for match in matches {
                 var config = UIButton.Configuration.bordered()

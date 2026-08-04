@@ -28,7 +28,12 @@ struct QueryConsoleView: View {
     @State private var pendingVerdict: SQLGuard.Verdict?
     @State private var confirmProceed = false
     @State private var exportShareItem: FileShareItem?
-    @State private var completionCandidates: [String] = []
+    /// Candidati per l'autocompletamento, separati per contesto.
+    @State private var completionKeywords: [String] = SQLCompletion.keywords
+    @State private var completionTables: [String] = []
+    @State private var completionColumns: [String] = []
+    /// Schema per cui sono già stati caricati i candidati (evita ricariche).
+    @State private var loadedSchema: String?
     /// Database attivo per le query: inizializzato dallo schema passato
     /// all'apertura e modificabile dal picker in toolbar.
     @State private var activeSchema: String
@@ -49,7 +54,10 @@ struct QueryConsoleView: View {
     var body: some View {
         VStack(spacing: 0) {
             toolbar
-            SQLTextEditor(text: $sql, completionCandidates: completionCandidates)
+            SQLTextEditor(text: $sql,
+                          completionKeywords: completionKeywords,
+                          completionTables: completionTables,
+                          completionColumns: completionColumns)
                 .frame(minHeight: 160, maxHeight: 300)
                 .overlay(alignment: .topLeading) {
                     if sql.isEmpty {
@@ -80,6 +88,11 @@ struct QueryConsoleView: View {
             Text("Operazione ad alto rischio rilevata.")
         }
         .task { await loadCompletionCandidates() }
+        // Se si cambia il database dal picker a console aperta, ricarica
+        // i candidati (tabelle e colonne del nuovo database).
+        .onChange(of: activeSchema) { _, _ in
+            Task { await loadCompletionCandidates() }
+        }
     }
 
     private var toolbar: some View {
@@ -99,7 +112,7 @@ struct QueryConsoleView: View {
                     .foregroundStyle(.secondary)
                 rowLimitPicker
                     .frame(width: 110)
-                Button("Chiudi") { dismiss() }
+                closeButton
             }
             // Layout stretto (iPhone): azioni sopra, database + limite sotto.
             VStack(alignment: .trailing, spacing: 8) {
@@ -108,7 +121,7 @@ struct QueryConsoleView: View {
                     clearButton
                     exportButton
                     Spacer()
-                    Button("Chiudi") { dismiss() }
+                    closeButton
                 }
                 HStack(spacing: 8) {
                     if !allSchemas.isEmpty {
@@ -144,6 +157,7 @@ struct QueryConsoleView: View {
             runWithGuard()
         } label: {
             Label("Esegui", systemImage: "play.fill")
+                .fixedSize()
         }
         .keyboardShortcut(.return, modifiers: [.command])
         .buttonStyle(.borderedProminent)
@@ -156,8 +170,13 @@ struct QueryConsoleView: View {
             results = []
             statusText = ""
         } label: {
+            #if os(iOS)
+            Image(systemName: "trash")
+            #else
             Label("Svuota", systemImage: "trash")
+            #endif
         }
+        .help("Svuota l'editor e i risultati")
         .disabled(sql.isEmpty && results.isEmpty)
     }
 
@@ -165,12 +184,28 @@ struct QueryConsoleView: View {
         Button {
             exportResults()
         } label: {
+            #if os(iOS)
+            Image(systemName: "square.and.arrow.up")
+            #else
             Label("Esporta", systemImage: "square.and.arrow.up")
+            #endif
         }
+        .help("Esporta i risultati in CSV")
         .disabled(!results.contains { $0.isSelect })
         .sheet(item: $exportShareItem) { item in
             CSVShareSheet(url: item.url)
         }
+    }
+
+    private var closeButton: some View {
+        Button {
+            dismiss()
+        } label: {
+            Image(systemName: "xmark.circle.fill")
+                .font(.system(size: 16, weight: .medium))
+        }
+        .buttonStyle(.borderless)
+        .help("Chiudi la console")
     }
 
     private var rowLimitPicker: some View {
@@ -287,32 +322,37 @@ struct QueryConsoleView: View {
         Task { await executeAll() }
     }
 
-    /// Precarica i candidati per l'autocompletamento: keyword SQL più i
-    /// nomi di schemi e oggetti del database attivo. Popola anche l'elenco
-    /// degli schemi (per il picker) e fissa il database attivo se vuoto.
+    /// Precarica i candidati per l'autocompletamento: keyword SQL più tabelle
+    /// e colonne del database attivo. Popola anche l'elenco degli schemi
+    /// (per il picker) e fissa il database attivo se vuoto.
     private func loadCompletionCandidates() async {
-        var candidates = SQLCompletion.keywords
+        // Idempotente: se i candidati sono già per questo schema, niente da fare.
+        if loadedSchema == activeSchema { return }
+        loadedSchema = activeSchema
+
+        completionKeywords = SQLCompletion.keywords
+        completionTables = []
+        completionColumns = []
         do {
             let transport = try session.requireTransport()
             let inspector = SchemaInspector(transport: transport)
             let schemas = try await inspector.schemas()
             allSchemas = schemas
-            candidates.append(contentsOf: schemas)
             // Database attivo: quello passato all'apertura se valido, altrimenti
             // il primo schema disponibile (mai "nessun database selezionato").
             if !schemas.contains(activeSchema) {
                 activeSchema = schemas.first ?? ""
             }
             if !activeSchema.isEmpty {
-                let objects = try? await inspector.children(of: activeSchema)
-                candidates.append(contentsOf: objects?.map { $0.displayName } ?? [])
-                let columns = try? await inspector.columns(in: activeSchema)
-                candidates.append(contentsOf: columns ?? [])
+                let objects = (try? await inspector.children(of: activeSchema)) ?? []
+                completionTables = objects
+                    .filter { $0.kind == .table || $0.kind == .view }
+                    .map { $0.displayName }
+                completionColumns = (try? await inspector.columns(in: activeSchema)) ?? []
             }
         } catch {
             // Restano le sole keyword.
         }
-        completionCandidates = candidates
     }
 
     private func exportResults() {

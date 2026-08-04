@@ -14,6 +14,9 @@ struct WorkspaceView: View {
     @State private var showQueryConsole = false
     @State private var showRetryFailed = false
     @State private var isReconnecting = false
+    /// Schema catturato nell'istante in cui si preme "Query": così la console
+    /// apre sempre sul database giusto anche alla prima apertura.
+    @State private var queryDefaultSchema = ""
 
     var body: some View {
         content
@@ -23,7 +26,7 @@ struct WorkspaceView: View {
                 }
             }
             .sheet(isPresented: $showQueryConsole) {
-                QueryConsoleView(session: session, defaultSchema: activeSchema)
+                QueryConsoleView(session: session, defaultSchema: queryDefaultSchema)
                     #if os(macOS)
                     .frame(minWidth: 900, minHeight: 620)
                     #endif
@@ -32,9 +35,12 @@ struct WorkspaceView: View {
                 if lost { Task { await autoRetry() } }
             }
             .alert("Impossibile riconnettere", isPresented: $showRetryFailed) {
-                Button("OK") { onDisconnect() }
+                Button("Riprova") {
+                    Task { await autoRetry() }
+                }
+                Button("Torna alla home", role: .destructive) { onDisconnect() }
             } message: {
-                Text("Il server non risponde. Tornerai alla lista delle connessioni.")
+                Text("Il server non risponde. Vuoi ritentare la connessione o tornare alla home?")
             }
     }
 
@@ -76,6 +82,7 @@ struct WorkspaceView: View {
                         .toolbar {
                             ToolbarItemGroup {
                                 Button {
+                                    queryDefaultSchema = schema
                                     showQueryConsole = true
                                 } label: {
                                     Label("Query", systemImage: "chevron.left.forwardslash.chevron.right")
@@ -116,6 +123,7 @@ struct WorkspaceView: View {
         .toolbar {
             ToolbarItemGroup {
                 Button {
+                    queryDefaultSchema = activeSchema
                     showQueryConsole = true
                 } label: {
                     Label("Query", systemImage: "chevron.left.forwardslash.chevron.right")
