@@ -198,8 +198,10 @@ struct MainWindowView: View {
 
     // MARK: - Actions
 
+    /// Nessuna "connessione predefinita": si testa solo un profilo
+    /// esplicitamente selezionato (selezionato in lista, connesso o modificato).
     private func selectedProfile() -> ConnectionProfile? {
-        store.profile(id: selectedProfileID) ?? store.profiles.first
+        store.profile(id: selectedProfileID)
     }
 
     private func connect(to profile: ConnectionProfile) {

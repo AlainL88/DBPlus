@@ -17,11 +17,6 @@ final class ConnectionStore {
 
     init() {
         load()
-        if profiles.isEmpty {
-            profiles = [
-                ConnectionProfile(name: "Server locale", host: "127.0.0.1", port: 3306, username: "root")
-            ]
-        }
     }
 
     func load() {

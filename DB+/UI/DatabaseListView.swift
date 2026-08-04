@@ -56,13 +56,20 @@ struct DatabaseListView: View {
     }
 
     private func reload() async {
-        guard !session.isConnecting else { return }
+        // Connessione in corso: resta in caricamento finché non è pronta.
+        guard !session.isConnecting else {
+            isLoading = true
+            return
+        }
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
         do {
             let inspector = SchemaInspector(transport: try session.requireTransport())
             schemas = try await inspector.schemas()
+        } catch DBError.notConnected {
+            // Trasporto non ancora pronto (connessione in avvio): il reload
+            // viene rilanciato da onChange(isConnecting). Niente errore.
         } catch {
             errorMessage = error.localizedDescription
         }
