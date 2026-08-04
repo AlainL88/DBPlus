@@ -35,6 +35,8 @@ struct QueryConsoleView: View {
     @State private var completionColumns: [String] = []
     /// Schema per cui sono già stati caricati i candidati (evita ricariche).
     @State private var loadedSchema: String?
+    /// Evita caricamenti concorrenti dei candidati (dal .task e dall'onChange).
+    @State private var isLoadingCandidates = false
     /// Database attivo per le query: inizializzato dallo schema passato
     /// all'apertura e modificabile dal picker in toolbar.
     @State private var activeSchema: String
@@ -326,10 +328,17 @@ struct QueryConsoleView: View {
     /// Precarica i candidati per l'autocompletamento: keyword SQL più tabelle
     /// e colonne del database attivo. Popola anche l'elenco degli schemi
     /// (per il picker) e fissa il database attivo se vuoto.
+    ///
+    /// Ogni query è limitata nel tempo: senza timeout, su tunnel lenti il
+    /// caricamento restava appeso e il keep-alive (ping a 30s) falliva,
+    /// innescando un auto-retry che staccava la connessione → crash.
     private func loadCompletionCandidates() async {
+        guard !isLoadingCandidates else { return }
+        isLoadingCandidates = true
+        defer { isLoadingCandidates = false }
+
         // Idempotente: se i candidati sono già per questo schema, niente da fare.
         if loadedSchema == activeSchema { return }
-        loadedSchema = activeSchema
 
         completionKeywords = SQLCompletion.keywords
         completionTables = []
@@ -337,7 +346,7 @@ struct QueryConsoleView: View {
         do {
             let transport = try session.requireTransport()
             let inspector = SchemaInspector(transport: transport)
-            let schemas = try await inspector.schemas()
+            let schemas = try await Timeout.withTimeout(6) { try await inspector.schemas() }
             allSchemas = schemas
             DebugLog.shared.log("[DB+DEBUG] loadCandidates: schemi=\(schemas) activeSchema iniziale='\(activeSchema)'")
             // Database attivo: quello passato all'apertura se valido, altrimenti
@@ -347,15 +356,36 @@ struct QueryConsoleView: View {
                 activeSchema = schemas.first ?? ""
             }
             DebugLog.shared.log("[DB+DEBUG] loadCandidates: activeSchema finale='\(activeSchema)'")
+            loadedSchema = activeSchema
             if !activeSchema.isEmpty {
-                let objects = (try? await inspector.children(of: activeSchema)) ?? []
+                let objects = (try? await Timeout.withTimeout(6) { try await inspector.children(of: activeSchema) }) ?? []
                 completionTables = objects
                     .filter { $0.kind == .table || $0.kind == .view }
                     .map { $0.displayName }
-                completionColumns = (try? await inspector.columns(in: activeSchema)) ?? []
             }
         } catch {
             // Restano le sole keyword.
+        }
+        // Colonne: query potenzialmente lenta (information_schema.COLUMNS).
+        // Caricate in background, senza bloccare l'apertura; se è lenta o
+        // fallisce, l'autocomplete resta su keyword + tabelle.
+        loadColumnsInBackground(for: activeSchema)
+    }
+
+    private func loadColumnsInBackground(for schema: String) {
+        guard !schema.isEmpty else { return }
+        Task {
+            do {
+                let transport = try session.requireTransport()
+                let inspector = SchemaInspector(transport: transport)
+                let columns = try await Timeout.withTimeout(10) { try await inspector.columns(in: schema) }
+                // Applica solo se lo schema attivo è ancora questo.
+                if activeSchema == schema {
+                    completionColumns = columns
+                }
+            } catch {
+                // Colonne non disponibili: non bloccante.
+            }
         }
     }
 

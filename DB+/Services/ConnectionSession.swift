@@ -189,6 +189,11 @@ final class ConnectionSession {
                 guard let transport = self.transport, transport.isConnected else { return }
                 do {
                     try await transport.pingLatency()
+                } catch is TimeoutError {
+                    // Ping in timeout: la connessione è occupata o lenta (es.
+                    // query lunghe in corso), NON persa. Evita il falso
+                    // connectionLost che scatenava un auto-retry disastroso
+                    // (staccava la connessione a metà lavoro → crash).
                 } catch {
                     self.connectionLost = true
                     self.stopKeepAlive()
