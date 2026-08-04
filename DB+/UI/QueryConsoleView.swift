@@ -15,6 +15,7 @@ struct QueryConsoleView: View {
     init(session: ConnectionSession, defaultSchema: String = "") {
         self.session = session
         self.defaultSchema = defaultSchema
+        _activeSchema = State(initialValue: defaultSchema)
     }
 
     @State private var sql = ""
@@ -28,6 +29,10 @@ struct QueryConsoleView: View {
     @State private var confirmProceed = false
     @State private var exportShareItem: FileShareItem?
     @State private var completionCandidates: [String] = []
+    /// Database attivo per le query: inizializzato dallo schema passato
+    /// all'apertura e modificabile dal picker in toolbar.
+    @State private var activeSchema: String
+    @State private var allSchemas: [String] = []
 
     @Environment(\.dismiss) private var dismiss
 
@@ -85,6 +90,10 @@ struct QueryConsoleView: View {
                 clearButton
                 exportButton
                 Spacer()
+                if !allSchemas.isEmpty {
+                    schemaPicker
+                        .frame(width: 160)
+                }
                 Text("Limite righe:")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -92,7 +101,7 @@ struct QueryConsoleView: View {
                     .frame(width: 110)
                 Button("Chiudi") { dismiss() }
             }
-            // Layout stretto (iPhone): azioni sopra, limite sotto.
+            // Layout stretto (iPhone): azioni sopra, database + limite sotto.
             VStack(alignment: .trailing, spacing: 8) {
                 HStack(spacing: 8) {
                     runButton
@@ -102,6 +111,11 @@ struct QueryConsoleView: View {
                     Button("Chiudi") { dismiss() }
                 }
                 HStack(spacing: 8) {
+                    if !allSchemas.isEmpty {
+                        schemaPicker
+                            .labelsHidden()
+                            .frame(width: 120)
+                    }
                     Text("Limite righe:")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -112,6 +126,17 @@ struct QueryConsoleView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    /// Picker del database attivo: mostra su quale database si lavora e
+    /// permette di cambiarlo prima di eseguire.
+    private var schemaPicker: some View {
+        Picker("Database:", selection: $activeSchema) {
+            ForEach(allSchemas, id: \.self) { schema in
+                Text(schema).tag(schema)
+            }
+        }
+        .help("Database attivo: le query vengono eseguite qui")
     }
 
     private var runButton: some View {
@@ -223,6 +248,12 @@ struct QueryConsoleView: View {
 
     private var statusBar: some View {
         HStack {
+            if !activeSchema.isEmpty {
+                Label(activeSchema, systemImage: "cylinder")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
             if !statusText.isEmpty {
                 Text(statusText)
                     .font(.caption)
@@ -257,19 +288,25 @@ struct QueryConsoleView: View {
     }
 
     /// Precarica i candidati per l'autocompletamento: keyword SQL più i
-    /// nomi di schemi e oggetti del database attivo.
+    /// nomi di schemi e oggetti del database attivo. Popola anche l'elenco
+    /// degli schemi (per il picker) e fissa il database attivo se vuoto.
     private func loadCompletionCandidates() async {
         var candidates = SQLCompletion.keywords
         do {
             let transport = try session.requireTransport()
             let inspector = SchemaInspector(transport: transport)
             let schemas = try await inspector.schemas()
+            allSchemas = schemas
             candidates.append(contentsOf: schemas)
-            let active = defaultSchema.isEmpty ? schemas.first : defaultSchema
-            if let active, schemas.contains(active) {
-                let objects = try? await inspector.children(of: active)
+            // Database attivo: quello passato all'apertura se valido, altrimenti
+            // il primo schema disponibile (mai "nessun database selezionato").
+            if !schemas.contains(activeSchema) {
+                activeSchema = schemas.first ?? ""
+            }
+            if !activeSchema.isEmpty {
+                let objects = try? await inspector.children(of: activeSchema)
                 candidates.append(contentsOf: objects?.map { $0.displayName } ?? [])
-                let columns = try? await inspector.columns(in: active)
+                let columns = try? await inspector.columns(in: activeSchema)
                 candidates.append(contentsOf: columns ?? [])
             }
         } catch {
@@ -300,14 +337,17 @@ struct QueryConsoleView: View {
         let start = DispatchTime.now()
         do {
             let transport = try session.requireTransport()
-            // Seleziona lo schema (se noto) prima di eseguire: senza database
-            // attivo le query falliscono con "nessun database selezionato".
-            var activeSchema = defaultSchema
-            if activeSchema.isEmpty {
-                activeSchema = (try? await transport.listSchemas())?.first ?? ""
+            // Seleziona lo schema attivo prima di eseguire: senza database
+            // le query falliscono con "nessun database selezionato".
+            var schema = activeSchema
+            if schema.isEmpty {
+                schema = allSchemas.first ?? ""
             }
-            if !activeSchema.isEmpty {
-                try await transport.useSchema(activeSchema)
+            if schema.isEmpty {
+                schema = (try? await transport.listSchemas())?.first ?? ""
+            }
+            if !schema.isEmpty {
+                try await transport.useSchema(schema)
             }
             let runner = QueryRunner(transport: transport)
             results = try await runner.runScript(sql, rowLimit: rowLimit) { _ in }

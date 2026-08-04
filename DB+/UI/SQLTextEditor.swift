@@ -81,6 +81,9 @@ struct SQLTextEditor: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         guard let textView = nsView.documentView as? NSTextView else { return }
+        // Sincronizza il Coordinator con la struct aggiornata: senza questo
+        // parent.completionCandidates resterebbe vuota (copia iniziale).
+        context.coordinator.parent = self
         if textView.string != text {
             textView.string = text
             textView.textStorage?.setAttributedString(SQLHighlighter.highlight(text))
@@ -182,6 +185,9 @@ struct SQLTextEditor: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: UITextView, context: Context) {
+        // Sincronizza il Coordinator con la struct aggiornata (in particolare
+        // completionCandidates): senza questo i suggerimenti non arrivano mai.
+        context.coordinator.parent = self
         if uiView.text != text {
             uiView.text = text
             context.coordinator.updateSuggestions(uiView)
