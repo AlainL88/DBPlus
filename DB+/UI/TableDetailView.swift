@@ -21,7 +21,8 @@ struct TableDetailView: View {
     @State private var page = TablePage(columns: [], rows: [], total: 0, offset: 0, limit: 200)
     @State private var selectedRowIndex: Int?
     @State private var editingCell: (row: Int, col: Int)?
-    @State private var isLoading = false
+    // Parte in "caricamento": evita il flash di "Nessuna riga" prima del load.
+    @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var sortColumn: String?
     @State private var ascending = true
