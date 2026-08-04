@@ -154,13 +154,19 @@ struct ConnectionEditorView: View {
     private var generalSection: some View {
         Section("Server MySQL / MariaDB") {
             TextField("Nome connessione", text: $name)
+                .noAutocap()
             TextField("Host", text: $host)
+                .noAutocap()
             HStack {
                 TextField("Porta", text: $port)
+                    .noAutocap()
+                    .numberPadKeyboard()
                     .frame(width: 90)
                 TextField("Utente", text: $username)
+                    .noAutocap()
             }
             TextField("Schema predefinito (opzionale)", text: $defaultSchema)
+                .noAutocap()
             Toggle("Usa SSL/TLS", isOn: $useTLS)
             if useTLS {
                 Toggle("Accetta certificato self-signed", isOn: $allowSelfSignedTLS)
@@ -172,10 +178,14 @@ struct ConnectionEditorView: View {
     private var sshSection: some View {
         Section("Tunnel SSH") {
             TextField("Host SSH", text: $sshHost)
+                .noAutocap()
             HStack {
                 TextField("Porta SSH", text: $sshPort)
+                    .noAutocap()
+                    .numberPadKeyboard()
                     .frame(width: 90)
                 TextField("Utente SSH", text: $sshUsername)
+                    .noAutocap()
             }
             Picker("Autenticazione", selection: $sshAuthType) {
                 ForEach(SSHAuthType.allCases) { auth in
@@ -186,6 +196,7 @@ struct ConnectionEditorView: View {
             if sshAuthType == .privateKey {
                 HStack {
                     TextField("Percorso chiave privata", text: $sshKeyPath)
+                        .noAutocap()
                     Button("Sfoglia…") {
                         showKeyImporter = true
                     }
@@ -208,6 +219,7 @@ struct ConnectionEditorView: View {
     private var bridgeSection: some View {
         Section("Bridge HTTPS") {
             TextField("URL dello script (https://…/db_bridge.php)", text: $bridgeURL)
+                .noAutocap()
             Toggle("Verifica firma HMAC-SHA256", isOn: $bridgeUseHMAC)
         }
     }
@@ -309,5 +321,29 @@ struct ConnectionEditorView: View {
         } else {
             SecretStore.save(secret, profileID: profile.id, kind: kind)
         }
+    }
+}
+
+extension View {
+    /// Disattiva l'autocapitalizzazione della tastiera (solo iOS). I campi
+    /// tecnici della connessione (host, utente, schema, URL, percorso chiave)
+    /// non devono capitalizzare: hostname e username MySQL sono case-sensitive.
+    @ViewBuilder
+    func noAutocap() -> some View {
+        #if os(iOS)
+        self.textInputAutocapitalization(.never)
+        #else
+        self
+        #endif
+    }
+
+    /// Tastiera numerica per i campi porta (solo iOS).
+    @ViewBuilder
+    func numberPadKeyboard() -> some View {
+        #if os(iOS)
+        self.keyboardType(.numberPad)
+        #else
+        self
+        #endif
     }
 }
