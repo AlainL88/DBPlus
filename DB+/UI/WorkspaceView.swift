@@ -5,18 +5,23 @@
 
 import SwiftUI
 
+/// Payload della console SQL: trasporta lo schema attivo nell'istante in cui
+/// si preme "Query". Con .sheet(item:) la sheet riceve il valore direttamente
+/// dal payload, senza leggere uno stato potenzialmente stale alla presentazione.
+private struct QuerySheetPayload: Identifiable {
+    let id = UUID()
+    let schema: String
+}
+
 struct WorkspaceView: View {
     let session: ConnectionSession
     var onDisconnect: () -> Void = {}
 
     @State private var selectedSchema: String?
     @State private var selectedObject: SchemaNode?
-    @State private var showQueryConsole = false
+    @State private var querySheet: QuerySheetPayload?
     @State private var showRetryFailed = false
     @State private var isReconnecting = false
-    /// Schema catturato nell'istante in cui si preme "Query": così la console
-    /// apre sempre sul database giusto anche alla prima apertura.
-    @State private var queryDefaultSchema = ""
 
     var body: some View {
         content
@@ -25,8 +30,8 @@ struct WorkspaceView: View {
                     ConnectingView(message: "Connessione in corso…")
                 }
             }
-            .sheet(isPresented: $showQueryConsole) {
-                QueryConsoleView(session: session, defaultSchema: queryDefaultSchema)
+            .sheet(item: $querySheet) { payload in
+                QueryConsoleView(session: session, defaultSchema: payload.schema)
                     #if os(macOS)
                     .frame(minWidth: 900, minHeight: 620)
                     #endif
@@ -82,8 +87,8 @@ struct WorkspaceView: View {
                         .toolbar {
                             ToolbarItemGroup {
                                 Button {
-                                    queryDefaultSchema = schema
-                                    showQueryConsole = true
+                                    DebugLog.shared.log("[DB+DEBUG] Query iOS: apertura console su schema='\(schema)'")
+                                    querySheet = QuerySheetPayload(schema: schema)
                                 } label: {
                                     Label("Query", systemImage: "chevron.left.forwardslash.chevron.right")
                                 }
@@ -123,8 +128,8 @@ struct WorkspaceView: View {
         .toolbar {
             ToolbarItemGroup {
                 Button {
-                    queryDefaultSchema = activeSchema
-                    showQueryConsole = true
+                    DebugLog.shared.log("[DB+DEBUG] Query macOS: apertura console su schema='\(activeSchema)' selected=\(selectedSchema ?? "nil")")
+                    querySheet = QuerySheetPayload(schema: activeSchema)
                 } label: {
                     Label("Query", systemImage: "chevron.left.forwardslash.chevron.right")
                 }

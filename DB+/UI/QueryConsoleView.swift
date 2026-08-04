@@ -16,6 +16,7 @@ struct QueryConsoleView: View {
         self.session = session
         self.defaultSchema = defaultSchema
         _activeSchema = State(initialValue: defaultSchema)
+        DebugLog.shared.log("[DB+DEBUG] QueryConsole init: defaultSchema ricevuto = '\(defaultSchema)'")
     }
 
     @State private var sql = ""
@@ -338,11 +339,14 @@ struct QueryConsoleView: View {
             let inspector = SchemaInspector(transport: transport)
             let schemas = try await inspector.schemas()
             allSchemas = schemas
+            DebugLog.shared.log("[DB+DEBUG] loadCandidates: schemi=\(schemas) activeSchema iniziale='\(activeSchema)'")
             // Database attivo: quello passato all'apertura se valido, altrimenti
             // il primo schema disponibile (mai "nessun database selezionato").
             if !schemas.contains(activeSchema) {
+                DebugLog.shared.log("[DB+DEBUG] loadCandidates: '\(activeSchema)' non tra gli schemi → reset a '\(schemas.first ?? "")'")
                 activeSchema = schemas.first ?? ""
             }
+            DebugLog.shared.log("[DB+DEBUG] loadCandidates: activeSchema finale='\(activeSchema)'")
             if !activeSchema.isEmpty {
                 let objects = (try? await inspector.children(of: activeSchema)) ?? []
                 completionTables = objects
