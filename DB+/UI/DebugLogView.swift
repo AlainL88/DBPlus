@@ -11,9 +11,14 @@ import SwiftUI
 struct DebugLogView: View {
     @Bindable var log: DebugLog
     @Environment(\.dismiss) private var dismiss
+    /// Mostra il log persistito su file (ultima sessione: sopravvive al crash,
+    /// utile quando l'app si blocca e l'array in memoria va perso).
+    @State private var showPersisted = false
 
     var body: some View {
-        let lines = log.snapshot()
+        let lines = showPersisted
+            ? log.readPersistedLog().split(separator: "\n").map(String.init)
+            : log.snapshot()
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
                 Text("Log debug")
@@ -22,6 +27,9 @@ struct DebugLogView: View {
                 Toggle("Registra", isOn: $log.enabled)
                     .labelsHidden()
                     .help("Abilita/disabilita la raccolta del debug")
+                Toggle("File", isOn: $showPersisted)
+                    .labelsHidden()
+                    .help("Mostra il log persistito (ultima sessione)")
                 Button("Copia") { PasteboardHelper.copy(lines.joined(separator: "\n")) }
                     .disabled(lines.isEmpty)
                 Button("Pulisci") { log.clear() }

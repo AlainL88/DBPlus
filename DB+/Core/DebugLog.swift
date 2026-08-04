@@ -24,6 +24,14 @@ final class DebugLog {
     // lavoro): senza lock l'array `lines` va in data race e l'app crasha
     // (EXC_BAD_ACCESS in _ArrayBuffer durante append/removeFirst).
     private let lock = NSLock()
+    /// File persistito (Documents/DebugLog.txt): sopravvive alla terminazione
+    /// dell'app, così dopo un crash/blocco si può ricostruire l'ultimo tratto.
+    private let logFileURL: URL
+
+    init() {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        logFileURL = (docs ?? FileManager.default.temporaryDirectory).appendingPathComponent("DebugLog.txt")
+    }
 
     func log(_ message: String) {
         guard enabled else { return }
@@ -34,14 +42,35 @@ final class DebugLog {
         if lines.count > maxLines {
             lines.removeFirst(lines.count - maxLines)
         }
+        appendToFile(line)
         lock.unlock()
         print(line)
+    }
+
+    private func appendToFile(_ line: String) {
+        guard let data = (line + "\n").data(using: .utf8) else { return }
+        if FileManager.default.fileExists(atPath: logFileURL.path) {
+            guard let handle = try? FileHandle(forWritingTo: logFileURL) else { return }
+            defer { try? handle.close() }
+            handle.seekToEndOfFile()
+            handle.write(data)
+        } else {
+            try? data.write(to: logFileURL)
+        }
     }
 
     func clear() {
         lock.lock()
         lines = []
+        try? FileManager.default.removeItem(at: logFileURL)
         lock.unlock()
+    }
+
+    /// Contenuto persistito su file (ultima sessione, sopravvive al crash).
+    func readPersistedLog() -> String {
+        lock.lock()
+        defer { lock.unlock() }
+        return (try? String(contentsOf: logFileURL, encoding: .utf8)) ?? ""
     }
 
     /// Snapshot thread-safe per la UI (i log arrivano da thread in background).
