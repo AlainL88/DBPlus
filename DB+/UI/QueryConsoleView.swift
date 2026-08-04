@@ -175,12 +175,13 @@ struct QueryConsoleView: View {
             statusText = ""
         } label: {
             #if os(iOS)
-            Image(systemName: "trash")
+            // "Gomma" invece del cestino: il cestino sembrava "elimina record".
+            Image(systemName: "eraser")
             #else
-            Label("Svuota", systemImage: "trash")
+            Label("Svuota", systemImage: "eraser")
             #endif
         }
-        .help("Svuota l'editor e i risultati")
+        .help("Svuota il testo della query e i risultati")
         .disabled(sql.isEmpty && results.isEmpty)
     }
 

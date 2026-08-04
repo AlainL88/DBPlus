@@ -11,7 +11,7 @@ import SwiftUI
 struct DebugLogView: View {
     var log: DebugLog
     @Environment(\.dismiss) private var dismiss
-    /// Mostra il log persistito su file (ultima sessione: sopravvive al crash).
+    /// true = mostra il log persistito su file (sessione precedente).
     @State private var showPersisted = false
     @State private var lines: [String] = []
     @State private var logEnabled = true
@@ -20,50 +20,76 @@ struct DebugLogView: View {
         let displayed = showPersisted
             ? log.readPersistedLog().split(separator: "\n").map(String.init)
             : lines
-        VStack(alignment: .leading, spacing: 8) {
-            // Barra superiore: titolo + due controlli con ETICHETTA VISIBILE
-            // (prima erano labelsHidden → due switch senza significato).
-            HStack(spacing: 12) {
+
+        VStack(alignment: .leading, spacing: 12) {
+            // Barra superiore essenziale: titolo + chiudi (niente sforamento).
+            HStack {
                 Text("Log debug")
                     .font(.headline)
                 Spacer()
-                Toggle("Registra", isOn: $logEnabled)
-                    .toggleStyle(.switch)
-                    .onChange(of: logEnabled) { _, value in log.enabled = value }
-                    .help("Abilita/disabilita la raccolta del debug")
-                Toggle("File", isOn: $showPersisted)
-                    .toggleStyle(.switch)
-                    .help("Mostra il log persistito (ultima sessione)")
-                Button("Copia") { PasteboardHelper.copy(displayed.joined(separator: "\n")) }
-                    .disabled(displayed.isEmpty)
-                Button("Pulisci") { log.clear(); refresh() }
                 Button("Chiudi") { dismiss() }
                     .keyboardShortcut(.cancelAction)
             }
 
+            // Controlli con etichette e spiegazione.
+            VStack(alignment: .leading, spacing: 6) {
+                Toggle("Registra log", isOn: $logEnabled)
+                    .onChange(of: logEnabled) { _, value in log.enabled = value }
+                Text("Raccoglie i messaggi di debug in memoria e su file.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 8) {
+                    Text("Mostra:")
+                        .font(.callout)
+                    Picker("", selection: $showPersisted) {
+                        Text("Sessione corrente").tag(false)
+                        Text("Ultima sessione (file)").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                }
+                Text("Il file conserva l'ultima sessione anche dopo un crash; quella corrente è solo in memoria.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Divider()
 
-            if displayed.isEmpty {
-                Spacer()
-                Text("Nessun messaggio di debug.")
-                    .foregroundStyle(.secondary)
-                Spacer()
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 2) {
-                        ForEach(Array(displayed.enumerated()), id: \.offset) { _, line in
-                            Text(line)
-                                .font(.system(size: 10, design: .monospaced))
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+            // Contenuto: scroll verticale; le righe monospaced vanno a capo
+            // (niente sforamento laterale).
+            Group {
+                if displayed.isEmpty {
+                    Spacer()
+                    Text("Nessun messaggio di debug.")
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                    Spacer()
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 2) {
+                            ForEach(Array(displayed.enumerated()), id: \.offset) { _, line in
+                                Text(line)
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
                         }
                     }
                 }
             }
+
+            HStack {
+                Button("Copia") { PasteboardHelper.copy(displayed.joined(separator: "\n")) }
+                    .disabled(displayed.isEmpty)
+                Button("Pulisci") { log.clear(); refresh() }
+                    .help("Cancella il log corrente e il file persistito")
+                Spacer()
+            }
         }
         .padding(16)
         #if os(macOS)
-        .frame(minWidth: 460, minHeight: 380)
+        .frame(minWidth: 520, minHeight: 420)
         #endif
         .onAppear {
             logEnabled = log.enabled
