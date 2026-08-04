@@ -19,8 +19,6 @@ struct SettingsView: View {
                 Section("Protezione") {
                     Toggle("Richiedi Face ID / Touch ID", isOn: $requireBiometricLock)
                         .help("Blocca l'app all'avvio e quando va in background.")
-                }
-                Section {
                     Text("Il blocco protegge l'accesso alle connessioni salvate. Se disattivato, l'app si apre direttamente.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
