@@ -9,7 +9,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("requireBiometricLock") private var requireBiometricLock = true
+    @AppStorage("requireBiometricLock") private var requireBiometricLock = false
     @AppStorage("pageLimit") private var pageLimit = 200
     @State private var showDebugLog = false
 
