@@ -174,29 +174,99 @@ struct SQLTextEditor: UIViewRepresentable {
         textView.spellCheckingType = .no
         textView.backgroundColor = .clear
         textView.delegate = context.coordinator
+        // Trascinando verso il basso nell'editor la tastiera si chiude.
+        textView.keyboardDismissMode = .interactive
         textView.inputAccessoryView = context.coordinator.accessoryBar
+        context.coordinator.textView = textView
         return textView
     }
 
     func updateUIView(_ uiView: UITextView, context: Context) {
         if uiView.text != text {
             uiView.text = text
+            context.coordinator.updateSuggestions(uiView)
         }
     }
 
     final class Coordinator: NSObject, UITextViewDelegate {
         var parent: SQLTextEditor
-        let accessoryBar = UIStackView()
+        let accessoryBar: UIView
+        weak var textView: UITextView?
+        private let scrollView = UIScrollView()
+        private let stack = UIStackView()
+        private let partialLabel = UILabel()
 
         init(_ parent: SQLTextEditor) {
             self.parent = parent
-            accessoryBar.axis = .horizontal
-            accessoryBar.spacing = 8
-            accessoryBar.alignment = .center
-            accessoryBar.layoutMargins = UIEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
-            accessoryBar.isLayoutMarginsRelativeArrangement = true
-            accessoryBar.backgroundColor = .secondarySystemBackground
-            accessoryBar.frame = CGRect(x: 0, y: 0, width: 400, height: 44)
+
+            // Etichetta con la parola parziale corrente.
+            partialLabel.font = .systemFont(ofSize: 11, weight: .regular)
+            partialLabel.textColor = .secondaryLabel
+            partialLabel.setContentHuggingPriority(.required, for: .horizontal)
+            partialLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+
+            stack.axis = .horizontal
+            stack.spacing = 8
+            stack.alignment = .center
+            stack.translatesAutoresizingMaskIntoConstraints = false
+
+            // Scroll orizzontale: i suggerimenti possono essere più larghi
+            // dello schermo e su iPhone non devono mai debordare/tagliarsi.
+            scrollView.translatesAutoresizingMaskIntoConstraints = false
+            scrollView.showsHorizontalScrollIndicator = false
+            scrollView.addSubview(stack)
+
+            let container = UIView()
+            container.backgroundColor = .secondarySystemBackground
+            container.addSubview(scrollView)
+
+            // Pulsante per chiudere la tastiera, sempre visibile a destra.
+            // (L'azione viene collegata a fine init, quando self è inizializzato.)
+            let dismissButton = UIButton(type: .system)
+            dismissButton.setImage(UIImage(systemName: "keyboard.chevron.compact.down"), for: .normal)
+            dismissButton.tintColor = .secondaryLabel
+            dismissButton.translatesAutoresizingMaskIntoConstraints = false
+            container.addSubview(dismissButton)
+
+            // Separatore superiore per distinguere la barra dall'editor.
+            let hairline = UIView()
+            hairline.backgroundColor = .separator
+            hairline.translatesAutoresizingMaskIntoConstraints = false
+            container.addSubview(hairline)
+
+            NSLayoutConstraint.activate([
+                scrollView.topAnchor.constraint(equalTo: container.topAnchor, constant: 6),
+                scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -6),
+                scrollView.leadingAnchor.constraint(equalTo: container.safeAreaLayoutGuide.leadingAnchor, constant: 12),
+                scrollView.trailingAnchor.constraint(equalTo: dismissButton.leadingAnchor, constant: -4),
+
+                stack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
+                stack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
+                stack.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
+                stack.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
+                stack.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor),
+                // Con pochi suggerimenti lo stack riempie comunque la larghezza.
+                stack.widthAnchor.constraint(greaterThanOrEqualTo: scrollView.frameLayoutGuide.widthAnchor),
+
+                dismissButton.trailingAnchor.constraint(equalTo: container.safeAreaLayoutGuide.trailingAnchor, constant: -8),
+                dismissButton.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+                dismissButton.widthAnchor.constraint(equalToConstant: 36),
+                dismissButton.heightAnchor.constraint(equalToConstant: 36),
+
+                hairline.topAnchor.constraint(equalTo: container.topAnchor),
+                hairline.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+                hairline.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+                hairline.heightAnchor.constraint(equalToConstant: 1),
+            ])
+
+            // La larghezza viene sovrascritta da UIKit con quella della tastiera.
+            container.frame = CGRect(x: 0, y: 0, width: 320, height: 48)
+            self.accessoryBar = container
+            super.init()
+
+            dismissButton.addAction(UIAction { [weak self] _ in
+                self?.textView?.resignFirstResponder()
+            }, for: .touchUpInside)
         }
 
         func textViewDidChange(_ textView: UITextView) {
@@ -208,39 +278,38 @@ struct SQLTextEditor: UIViewRepresentable {
             updateSuggestions(textView)
         }
 
-        private func updateSuggestions(_ textView: UITextView) {
-            accessoryBar.arrangedSubviews.forEach { $0.removeFromSuperview() }
-            guard !parent.completionCandidates.isEmpty else { return }
+        func updateSuggestions(_ textView: UITextView) {
+            stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
 
             let location = textView.selectedRange.location
             let (partial, range) = partialWord(at: location, in: textView.text)
-            guard !partial.isEmpty, range.length > 0 else { return }
+
+            // Candidati non ancora caricati oppure cursore non dentro una parola:
+            // la barra resta vuota (resta visibile solo il pulsante di chiusura).
+            guard !parent.completionCandidates.isEmpty, !partial.isEmpty else { return }
 
             let lower = partial.lowercased()
             let matches = parent.completionCandidates
                 .filter { $0.lowercased().hasPrefix(lower) && $0.caseInsensitiveCompare(partial) != .orderedSame }
-                .prefix(5)
+                .prefix(8)
 
             guard !matches.isEmpty else { return }
 
-            let label = UILabel()
-            label.text = partial
-            label.font = .systemFont(ofSize: 11, weight: .regular)
-            label.textColor = .secondaryLabel
-            label.setContentHuggingPriority(.required, for: .horizontal)
-            accessoryBar.addArrangedSubview(label)
+            partialLabel.text = partial
+            stack.addArrangedSubview(partialLabel)
 
             for match in matches {
-                let button = UIButton(type: .system)
-                button.setTitle(match, for: .normal)
+                var config = UIButton.Configuration.bordered()
+                config.cornerStyle = .capsule
+                config.title = match
+                config.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 10, bottom: 4, trailing: 10)
+                let button = UIButton(configuration: config)
                 button.titleLabel?.font = .monospacedSystemFont(ofSize: 13, weight: .medium)
-                button.setContentHuggingPriority(.required, for: .horizontal)
-                button.setContentCompressionResistancePriority(.required, for: .horizontal)
                 button.addAction(UIAction { [weak self, weak textView] _ in
                     guard let self, let textView else { return }
                     self.insert(match, replacing: range, in: textView)
                 }, for: .touchUpInside)
-                accessoryBar.addArrangedSubview(button)
+                stack.addArrangedSubview(button)
             }
         }
 

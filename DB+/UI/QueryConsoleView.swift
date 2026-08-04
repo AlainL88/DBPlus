@@ -31,6 +31,16 @@ struct QueryConsoleView: View {
 
     @Environment(\.dismiss) private var dismiss
 
+    /// Testo del placeholder: su iPhone non esiste il tasto Cmd per eseguire,
+    /// quindi resta il semplice invito a scrivere la query.
+    private var editorPlaceholder: String {
+        #if os(macOS)
+        "Scrivi qui la query…\nCmd+Invio per eseguire"
+        #else
+        "Scrivi qui la query…"
+        #endif
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             toolbar
@@ -38,7 +48,7 @@ struct QueryConsoleView: View {
                 .frame(minHeight: 160, maxHeight: 300)
                 .overlay(alignment: .topLeading) {
                     if sql.isEmpty {
-                        Text("Scrivi qui la query…\nCmd+Invio per eseguire")
+                        Text(editorPlaceholder)
                             .font(.system(size: 12))
                             .foregroundStyle(.tertiary)
                             .padding(.top, 6)
@@ -165,6 +175,7 @@ struct QueryConsoleView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
             }
+            .scrollDismissesKeyboard(.immediately)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if results.isEmpty {
             ContentUnavailableView(
@@ -205,6 +216,7 @@ struct QueryConsoleView: View {
                     }
                     .padding(8)
                 }
+                .scrollDismissesKeyboard(.immediately)
             }
         }
     }
