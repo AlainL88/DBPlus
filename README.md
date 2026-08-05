@@ -12,7 +12,7 @@ DB+ is a modern database manager that runs natively on Apple platforms — no El
 ## Features
 
 - **Native & cross-platform** — one SwiftUI codebase for macOS, iPhone and iPad.
-- **Direct and SSH connections** — plain TCP with TLS, or SSH tunneling (system OpenSSH on macOS, in-process [Citadel](https://github.com/grdschomberg/citadel) client on iOS).
+- **Direct, SSH and HTTPS bridge connections** — plain TCP with TLS, SSH tunneling (system OpenSSH on macOS, in-process [Citadel](https://github.com/grdschomberg/citadel) client on iOS), or an HTTPS bridge to a `db_bridge.php` endpoint for restricted networks.
 - **Credential security** — connection secrets stored in the Keychain, never on disk in plain text.
 - **Biometric lock** — optional Face ID / Touch ID gate on your saved connection profiles.
 - **SQL console** — multi-statement queries, schema-aware autocomplete and syntax highlighting.
@@ -63,6 +63,10 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design.
 - All SQL is executed through **prepared statements** (MySQLNIO), guarding against SQL injection.
 - Optional **biometric lock** protects saved connection profiles.
 - No analytics beyond Crashlytics crash reporting, and no data ever leaves your device except to the servers you configure.
+
+## Compliance
+
+DB+ uses only standard cryptography (TLS, SSH, HMAC-SHA256) and is classified as mass-market / exempt for export purposes. See [docs/EXPORT_COMPLIANCE.md](docs/EXPORT_COMPLIANCE.md) for the full assessment.
 
 ## Support the project ☕
 
