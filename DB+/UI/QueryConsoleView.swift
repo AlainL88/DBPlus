@@ -177,6 +177,7 @@ struct QueryConsoleView: View {
             #if os(iOS)
             // "Gomma" invece del cestino: il cestino sembrava "elimina record".
             Image(systemName: "eraser")
+                .font(.system(size: 22, weight: .medium))
             #else
             Label("Svuota", systemImage: "eraser")
             #endif
@@ -191,6 +192,7 @@ struct QueryConsoleView: View {
         } label: {
             #if os(iOS)
             Image(systemName: "square.and.arrow.up")
+                .font(.system(size: 22, weight: .medium))
             #else
             Label("Esporta", systemImage: "square.and.arrow.up")
             #endif
@@ -207,9 +209,10 @@ struct QueryConsoleView: View {
             dismiss()
         } label: {
             Image(systemName: "xmark.circle.fill")
-                .font(.system(size: 16, weight: .medium))
+                .font(.system(size: 22, weight: .medium))
         }
         .buttonStyle(.borderless)
+        .padding(.trailing, 8)
         .help("Chiudi la console")
     }
 
