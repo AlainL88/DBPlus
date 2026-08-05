@@ -49,6 +49,7 @@ struct DataGridView: View {
                 .frame(minWidth: geo.size.width, minHeight: geo.size.height, alignment: .topLeading)
             }
             .background(Color.gridBackground)
+            .scrollDismissesKeyboard(.immediately)
             #if os(macOS)
             .onExitCommand { editing = nil }
             #endif

@@ -147,7 +147,7 @@ struct TableDetailView: View {
                     selectedRow: selectedRowIndex,
                     sortColumn: sortColumn,
                     ascending: ascending,
-                    onSelectRow: { selectedRowIndex = $0 },
+                    onSelectRow: { selectedRowIndex = $0; dismissKeyboard() },
                     onSortColumn: { column in
                         if sortColumn == column {
                             ascending.toggle()
@@ -160,6 +160,7 @@ struct TableDetailView: View {
                     onEditCell: isView ? nil : performCellEdit,
                     onSelectCell: isView ? nil : { row, col in
                         editingCell = (row: row, col: col)
+                        dismissKeyboard()
                     },
                     highlightedCell: editingCell
                 )
@@ -199,12 +200,22 @@ struct TableDetailView: View {
         TextField("Filtro SQL (es. id > 100)", text: $filterText)
             .textFieldStyle(.roundedBorder)
             .textInputAutocapitalization(.never)
-            .onSubmit { applyFilter() }
+            .onSubmit {
+                dismissKeyboard()
+                applyFilter()
+            }
     }
 
     private func applyFilter() {
         page = TablePage(columns: page.columns, rows: [], total: 0, offset: 0, limit: pageLimit)
         Task { await reload() }
+    }
+
+    /// Nasconde la tastiera (solo iOS): usato su submit, scroll e tap sui record.
+    private func dismissKeyboard() {
+        #if os(iOS)
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        #endif
     }
 
     private var bottomBar: some View {
