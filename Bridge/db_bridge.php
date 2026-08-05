@@ -1,30 +1,30 @@
 <?php
 /**
- * db_bridge.php — Bridge HTTPS per DB+ (gestore MySQL/MariaDB).
+ * db_bridge.php — HTTPS bridge for DB+ (MySQL/MariaDB client).
  *
- * Da posizionare su un server web con PHP 8.1+ e l'estensione pdo_mysql,
- * idealmente dietro HTTPS/TLS. Tutte le richieste sono autenticate con:
+ * Deploy on a web server with PHP 8.1+ and the pdo_mysql extension,
+ * ideally behind HTTPS/TLS. Every request is authenticated with:
  *   - Bearer token (header: X-DBPlus-Token)
- *   - firma HMAC-SHA256 su "timestamp:body" (header: X-DBPlus-Signature /
- *     X-DBPlus-Timestamp) se BRIDGE_HMAC_SECRET è configurato
+ *   - HMAC-SHA256 signature over "timestamp:body" (headers: X-DBPlus-Signature /
+ *     X-DBPlus-Timestamp) when BRIDGE_HMAC_SECRET is configured
  *
- * Sicurezza implementata:
+ * Security implemented:
  *   - prepared statements (PDO::ATTR_EMULATE_PREPARES = false)
- *   - rate limiting per IP (token bucket su file, senza dipendenze)
- *   - controllo finestra temporale anti-replay
- *   - singola istruzione per richiesta (niente multi-statement)
- *   - blocco di pattern pericolosi (INTO OUTFILE / LOAD_FILE / ...)
- *   - limite massimo di righe e dimensione del body
- *   - nessuna credenziale nel log o nella risposta
+ *   - per-IP rate limiting (file-based token bucket, no dependencies)
+ *   - anti-replay time-window check
+ *   - single statement per request (no multi-statement)
+ *   - dangerous pattern blocking (INTO OUTFILE / LOAD_FILE / ...)
+ *   - maximum row count and body size limits
+ *   - no credentials in logs or responses
  *
  * ─────────────────────────────────────────────────────────────────────
- *  CONFIGURAZIONE RAPIDA
- *  1. Copia questo file sul server web (es. /var/www/html/db_bridge.php).
- *  2. Edita le costanti qui sotto (genera i segreti con:
+ *  QUICK SETUP
+ *  1. Copy this file to the web server (e.g. /var/www/html/db_bridge.php).
+ *  2. Edit the constants below (generate the secrets with:
  *     php -r "echo bin2hex(random_bytes(32)), PHP_EOL;")
- *  3. Verifica:  php -l db_bridge.php
- *  4. Nell'app DB+ crea una connessione "Tunnel HTTPS (Bridge)" con
- *     l'URL dello script, il token e il segreto HMAC.
+ *  3. Verify:  php -l db_bridge.php
+ *  4. In the DB+ app create an "HTTPS Tunnel (Bridge)" connection with
+ *     the script URL, the token and the HMAC secret.
  * ─────────────────────────────────────────────────────────────────────
  */
 
@@ -38,25 +38,25 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 header('X-Content-Type-Options: nosniff');
 
-/* ═══════════════════════ CONFIGURAZIONE ═══════════════════════ */
+/* ═══════════════════════ CONFIGURATION ═══════════════════════ */
 
-const BRIDGE_TOKEN       = 'CHANGE_ME_genera_un_token_lungo'; // token Bearer
-const BRIDGE_HMAC_SECRET = 'CHANGE_ME_genera_un_segreto_hmac'; // se vuoto: solo token
-const TIME_WINDOW_TOLERANCE = 300;                             // secondi (anti-replay)
+const BRIDGE_TOKEN       = 'CHANGE_ME_generate_a_long_token';   // Bearer token
+const BRIDGE_HMAC_SECRET = 'CHANGE_ME_generate_an_hmac_secret'; // if empty: token only
+const TIME_WINDOW_TOLERANCE = 300;                              // seconds (anti-replay)
 
 const DB_HOST    = '127.0.0.1';
 const DB_PORT    = 3306;
-const DB_NAME    = '';      // schema predefinito (opzionale)
+const DB_NAME    = '';      // default schema (optional)
 const DB_USER    = 'dbuser';
 const DB_PASS    = 'dbpass';
 const DB_CHARSET = 'utf8mb4';
 
-const MAX_QUERY_SECONDS  = 30;       // timeout esecuzione query
-const MAX_ROWS           = 5000;     // cap righe restituite per richiesta
+const MAX_QUERY_SECONDS  = 30;       // query execution timeout
+const MAX_ROWS           = 5000;     // max rows returned per request
 const MAX_SQL_LENGTH     = 1_000_000;
 const MAX_BODY_LENGTH    = 2_000_000;
-const RATE_LIMIT_PER_MIN = 120;      // richieste al minuto per IP
-const ALLOW_DANGEROUS    = false;    // true = consenti INTO OUTFILE / LOAD_FILE ...
+const RATE_LIMIT_PER_MIN = 120;      // requests per minute per IP
+const ALLOW_DANGEROUS    = false;    // true = allow INTO OUTFILE / LOAD_FILE ...
 
 /* ═════════════════════════ HELPERS ═════════════════════════ */
 
@@ -96,7 +96,7 @@ function rate_limited(): bool {
     return $entry['count'] > RATE_LIMIT_PER_MIN;
 }
 
-/** Restituisce true se il testo contiene un punto e virgola a livello top-level. */
+/** Returns true if the text contains a top-level semicolon. */
 function has_top_level_semicolon(string $sql): bool {
     $len = strlen($sql);
     $inSingle = $inDouble = $inBacktick = $inLineComment = $inBlockComment = false;
@@ -164,7 +164,7 @@ if (rate_limited()) {
     json_out(['ok' => false, 'error' => 'Troppe richieste. Riprova più tardi.'], 429);
 }
 
-/* ═════════════════════ DECODIFICA BODY ═════════════════════ */
+/* ═════════════════════ DECODE BODY ═════════════════════ */
 
 $request = json_decode($rawBody, true);
 if (!is_array($request)) {
@@ -192,7 +192,7 @@ try {
 
 $serverVersion = (string)$pdo->query('SELECT VERSION()')->fetchColumn();
 
-/* ══════════════════════ AZIONI ══════════════════════ */
+/* ══════════════════════ ACTIONS ══════════════════════ */
 
 if ($action === 'ping') {
     json_out([
