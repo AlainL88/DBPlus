@@ -68,7 +68,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design.
 
 DB+ is free, open source, and will stay that way. Building a polished app for three platforms takes evenings and weekends — if DB+ saves you time at work, a coffee keeps the project alive and the next feature shipping sooner.
 
-<a href="https://buymeacoffee.com/alainl"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=☕&slug=alainl&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" alt="Buy Me A Coffee"></a>
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?logo=buy-me-a-coffee&logoColor=000)](https://buymeacoffee.com/alainl)
 
 Supporting the project doesn't unlock features — it just keeps it funded and free for everyone.
 
