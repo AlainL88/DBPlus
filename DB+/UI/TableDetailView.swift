@@ -198,6 +198,7 @@ struct TableDetailView: View {
     private var filterField: some View {
         TextField("Filtro SQL (es. id > 100)", text: $filterText)
             .textFieldStyle(.roundedBorder)
+            .textInputAutocapitalization(.never)
             .onSubmit { applyFilter() }
     }
 
