@@ -4,6 +4,7 @@
 [![Platform: macOS](https://img.shields.io/badge/macOS-26.5+-brightgreen)](#requirements)
 [![Platform: iOS](https://img.shields.io/badge/iOS%20%2F%20iPadOS-26.5+-blue)](#requirements)
 [![Language: Swift](https://img.shields.io/badge/Swift-6-orange)](https://www.swift.org)
+[![App Store](https://img.shields.io/badge/App%20Store-0D96F6?logo=app-store&logoColor=white)](https://apps.apple.com/app/id6797038461)
 
 A native **MySQL & MariaDB client** for macOS, iPhone and iPad. Open source, built with SwiftUI.
 
