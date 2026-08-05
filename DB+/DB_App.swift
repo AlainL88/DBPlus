@@ -16,8 +16,13 @@ struct DB_App: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
-        FirebaseApp.configure()
-        Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+        // Crashlytics si attiva solo se è presente la config Firebase
+        // (GoogleService-Info.plist): così il progetto compila e gira
+        // anche senza di essa (es. chi contribuisce da sorgente).
+        if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
+            FirebaseApp.configure()
+            Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+        }
     }
 
     var body: some Scene {

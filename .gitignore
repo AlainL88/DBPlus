@@ -20,3 +20,12 @@ xcuserdata/
 # Secrets / local
 *.secret
 askpass.sh
+
+# Firebase — config locale, rigenerabile dal Firebase console
+DB+/GoogleService-Info.plist
+
+# Strumenti e doc generati (rigenerabili) — mai versionare
+Tools/GenerateIcon.swift
+Tools/verifyIcon.swift
+Tools/KeyGenCheck/
+docs/superpowers/
