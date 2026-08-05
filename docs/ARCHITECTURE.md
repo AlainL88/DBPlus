@@ -1,155 +1,152 @@
-# DB+ — Architettura e Selezione dello Stack
+# DB+ — Architecture and Stack Selection
 
-**Versione:** 1.2 — **Data:** 2026-08-01
-**Piattaforme target:** macOS (26.5) + iOS/iPadOS (26.5) — SwiftUI, codice condiviso
+**Version:** 1.3 — **Date:** 2026-08-05
+**Target platforms:** macOS (26.5) + iOS/iPadOS (26.5) — SwiftUI, shared codebase
 
-## 1. Sintesi
+## 1. Summary
 
-DB+ è un gestore MySQL/MariaDB nativo per macOS con tre modalità di
-connessione (diretta, tunnel SSH, tunnel HTTPS via script bridge),
-inspector della struttura, data grid con editing CRUD, console SQL
-multi-statement, modulo di benchmarking e conformità all'export di
-software crittografico.
+DB+ is a native MySQL/MariaDB client for macOS, iPhone and iPad, with three
+connection modes (direct, SSH tunnel, HTTPS tunnel via bridge script), a schema
+inspector, a data grid with CRUD editing, a multi-statement SQL console, and
+export-compliance for cryptographic software.
 
-L'architettura è **transport-agnostica**: un unico protocollo
-`DatabaseTransport` isola tutta la logica applicativa (inspector, data
-grid, query runner, benchmark) dalle tre implementazioni di rete.
+The architecture is **transport-agnostic**: a single `DatabaseTransport`
+protocol isolates all app logic (inspector, data grid, query runner) from the
+three network implementations.
 
 ```
 ┌─────────────────────────────── UI (SwiftUI) ───────────────────────────────┐
-│  ConnectionList │ SchemaNavigator │ DataGrid │ QueryConsole │ Benchmark    │
+│  ConnectionList │ SchemaNavigator │ DataGrid │ QueryConsole │ Settings     │
 └───────────────────────────────┬────────────────────────────────────────────┘
                                 ▼
-                   ┌───────── Services ─────────┐
-                   │ SchemaInspector │ DataGrid │ QueryRunner │ Benchmark   │
-                   │     Service     │ Service  │             │ Service     │
-                   └───────────────┬────────────┘
-                                   ▼
-                          protocol DatabaseTransport
-            ┌──────────────────────┬────────────────────────┐
-            ▼                      ▼                        ▼
-   DirectTransport          SSHTransport            BridgeTransport
-   (MySQLNIO, TLS)     (tunnel SSH + MySQLNIO)      (URLSession + HMAC)
-            │                      │                        │
-        MySQL/MariaDB          SSH gateway             HTTPS → db_bridge.php
+                    ┌────────── Services ──────────┐
+                    │ SchemaInspector │ DataGrid │ QueryRunner                │
+                    │     Service     │ Service  │  Service                   │
+                    └───────────────┬────────────┘
+                                    ▼
+                           protocol DatabaseTransport
+             ┌──────────────────────┬────────────────────────┐
+             ▼                      ▼                        ▼
+    DirectTransport          SSHTransport            BridgeTransport
+    (MySQLNIO, TLS)     (SSH tunnel + MySQLNIO)      (URLSession + HMAC)
+             │                      │                        │
+         MySQL/MariaDB          SSH gateway             HTTPS → db_bridge.php
 ```
 
-## 2. Selezione delle librerie (FASE 1)
+## 2. Library selection (PHASE 1)
 
-| Esigenza | Opzioni valutate | Scelta | Motivazione |
+| Need | Options evaluated | Choice | Rationale |
 |---|---|---|---|
-| Client MySQL | MySQLNIO · Fluent/MySQLKit · libmysqlclient C · client obsoleti | **MySQLNIO** | Pure Swift, async/await, prepared statements server-side, streaming delle righe (impronta di memoria), TLS integrato, manutenzione attiva (Vapor). Un ORM non è adatto a un tool che esegue SQL arbitrario. |
-| Tunnel SSH (macOS) | SwiftSH (libssh2) · libssh2 C · **OpenSSH di sistema** | **OpenSSH** via `Process` | SwiftSH non implementa il port forwarding e imbarca binari OpenSSL/libssh2 precompilati (rischio supply-chain). OpenSSH di Apple: zero dipendenze, Ed25519/RSA nativi, keep-alive robusto, password/chiave+passphrase via `SSH_ASKPASS` (helper temporaneo `0600`, rimosso subito). |
-| Tunnel SSH (iOS) | SwiftSH · libssh2/OpenSSL XCFramework · **Citadel** | **Citadel** (SwiftNIO + swift-crypto) | Su iOS non esiste `/usr/bin/ssh` e la sandbox vieta processi figli: serve un client SSH **in-process**. Citadel (MIT, SPM, nessun binario precompilato) supporta password, RSA, Ed25519, passphrase e canali **direct-tcpip** sullo stesso stack SwiftNIO già usato da MySQLNIO. Richiede iOS 17+/macOS 14+. |
-| Bridge HTTPS | URLSession + ATS | **URLSession** | Nativo, HTTPS/TLS, streaming, misura della latenza. |
-| Credenziali | Keychain · file cifrato · UserDefaults | **Keychain** (`kSecClassGenericPassword`) | Cifratura nativa del sistema, segreti mai su disco in chiaro. |
-| Stato UI | @ObservableObject · @Observable | **@Observable** (Observation) | Sintassi moderna, coerente con macOS 26. |
-| Editor SQL | HighlightedTextEditor · custom | **NSTextView custom** + tokenizer regex | Nessuna dipendenza extra, evidenziazione controllata. |
-| Crittografia | CryptoKit | **HMAC-SHA256 (CryptoKit)** | API nativa per la firma del bridge. |
+| MySQL client | MySQLNIO · Fluent/MySQLKit · libmysqlclient C · legacy clients | **MySQLNIO** | Pure Swift, async/await, server-side prepared statements, row streaming (low memory footprint), built-in TLS, actively maintained (Vapor). An ORM is not suited to a tool that runs arbitrary SQL. |
+| SSH tunnel (macOS) | SwiftSH (libssh2) · libssh2 C · **system OpenSSH** | **OpenSSH** via `Process` | SwiftSH does not implement port forwarding and bundles prebuilt OpenSSL/libssh2 binaries (supply-chain risk). Apple's OpenSSH: zero dependencies, native Ed25519/RSA, robust keep-alive, password/key+passphrase via `SSH_ASKPASS` (temporary `0600` helper, removed immediately). |
+| SSH tunnel (iOS) | SwiftSH · libssh2/OpenSSL XCFramework · **Citadel** | **Citadel** (SwiftNIO + swift-crypto) | iOS has no `/usr/bin/ssh` and the sandbox forbids child processes: an **in-process** SSH client is required. Citadel (MIT, SPM, no prebuilt binaries) supports password, RSA, Ed25519, passphrase and **direct-tcpip** channels on the same SwiftNIO stack MySQLNIO uses. Requires iOS 17+/macOS 14+. |
+| HTTPS bridge | URLSession + ATS | **URLSession** | Native, HTTPS/TLS, streaming, latency measurement. |
+| Credentials | Keychain · encrypted file · UserDefaults | **Keychain** (`kSecClassGenericPassword`) | System-native encryption, secrets never stored in clear on disk. |
+| UI state | @ObservableObject · @Observable | **@Observable** (Observation) | Modern syntax, consistent with macOS 26. |
+| SQL editor | HighlightedTextEditor · custom | **Custom NSTextView** + regex tokenizer | No extra dependency, controlled highlighting. |
+| Cryptography | CryptoKit | **HMAC-SHA256 (CryptoKit)** | Native API for bridge signing. |
 
-Dipendenza SPM unica: **MySQLNIO** (+ SwiftNIO, importato transitivamente
-via `@_exported import NIO`).
+The only direct SPM dependency is **MySQLNIO** (+ SwiftNIO, imported
+transitively via `@_exported import NIO`); Citadel and firebase-ios-sdk
+(Crashlytics) are also resolved through Swift Package Manager.
 
-### 2.1 Perché MySQLNIO
-- `query(_:_:onRow:)` esegue **prepared statement** con parametri tipizzati
-  (`MySQLData`) → difesa sistematica da SQL injection.
-- `onRow` consente lo **streaming**: i dataset grandi non vengono mai
-  caricati interamente in RAM (vedi Benchmarking).
-- `tlsConfiguration` espone il controllo completo su TLS (incluso il caso
-  self-signed per test).
+### 2.1 Why MySQLNIO
+- `query(_:_:onRow:)` runs **prepared statements** with typed parameters
+  (`MySQLData`) → systematic defense against SQL injection.
+- `onRow` enables **streaming**: large datasets are never loaded entirely
+  into RAM.
+- `tlsConfiguration` exposes full control over TLS (including self-signed
+  for testing).
 
-### 2.2 Perché OpenSSH di sistema
-- Un'app macOS può lanciare `/usr/bin/ssh` senza bundlare librerie C.
-- Supporto completo e aggiornato di **Ed25519/RSA** e passphrase.
-- `ServerAliveInterval=15` + `ExitOnForwardFailure` per la resilienza.
-- I segreti transitori vivono in una directory temporanea `DBplus-<uuid>`
-  (`chmod 600/700`) eliminata al teardown: **nessun segreto persistito**.
+### 2.2 Why system OpenSSH
+- A macOS app can launch `/usr/bin/ssh` without bundling C libraries.
+- Full, up-to-date support for **Ed25519/RSA** and passphrases.
+- `ServerAliveInterval=15` + `ExitOnForwardFailure` for resilience.
+- Transient secrets live in a temporary `DBplus-<uuid>` directory
+  (`chmod 600/700`) removed at teardown: **no secrets persisted**.
 
-## 3. Architettura delle connessioni (FASE 2)
+## 3. Connection architecture (PHASE 2)
 
-### 3.1 Connessione Diretta
+### 3.1 Direct connection
 `DirectTransport` → `MySQLConnection.connect(to:username:database:
-password:tlsConfiguration:on:)`. TLS abilitato di default; l'utente può
-accettare certificati self-signed (config `allowSelfSignedTLS`).
+password:tlsConfiguration:on:)`. TLS enabled by default; the user can accept
+self-signed certificates (config `allowSelfSignedTLS`).
 
-### 3.2 Tunnel SSH
+### 3.2 SSH tunnel
 `SSHTransport`:
-1. apre il tunnel con `SSHProcessTunnel` (porta locale casuale,
-   autenticazione password o chiave `-i`, askpass per segreti);
-2. attende che la porta locale accetti connessioni (poll su socket);
-3. delega a un `DirectTransport` verso `127.0.0.1:portaLocale`.
+1. opens the tunnel with `SSHProcessTunnel` (random local port, password or
+   key `-i` auth, askpass for secrets);
+2. waits until the local port accepts connections (socket poll);
+3. delegates to a `DirectTransport` towards `127.0.0.1:localPort`.
 
-Il teardown rilascia processo e file temporanei (SIGTERM → SIGKILL).
+Teardown releases process and temporary files (SIGTERM → SIGKILL).
 
-> **Multi-piattaforma:** su macOS il tunnel usa OpenSSH di sistema
-> (`/usr/bin/ssh`, `SSHProcessTunnel`). Su iOS/iPadOS — dove `/usr/bin/ssh`
-> non esiste e la sandbox vieta processi figli — viene usato un client SSH
-> **in-process** (`SSHInProcessTunnel`, libreria **Citadel**): apre un
-> listener TCP su `127.0.0.1` e instrada ogni connessione su un canale SSH
-> **direct-tcpip** verso il server MySQL. Entrambe le implementazioni
-> condividono il contratto `SSHTunnel` e supportano password o chiave
-> RSA/Ed25519 (anche protetta da passphrase, formato `openssh-key-v1`).
-> Su iOS le letture del canale locale sono sospese finché il canale SSH non
-> è pronto, così il primo byte dell'handshake MySQL non viene perso.
+> **Cross-platform:** on macOS the tunnel uses the system OpenSSH
+> (`/usr/bin/ssh`, `SSHProcessTunnel`). On iOS/iPadOS — where `/usr/bin/ssh`
+> does not exist and the sandbox forbids child processes — an **in-process**
+> SSH client is used (`SSHInProcessTunnel`, library **Citadel**): it opens a
+> TCP listener on `127.0.0.1` and routes every connection over a SSH
+> **direct-tcpip** channel to the MySQL server. Both implementations share
+> the `SSHTunnel` contract and support password or RSA/Ed25519 key (also
+> passphrase-protected, `openssh-key-v1` format). On iOS, reads from the
+> local channel are suspended until the SSH channel is ready, so the first
+> byte of the MySQL handshake is never lost.
 
-### 3.3 Tunnel HTTPS (Bridge)
-`BridgeTransport` invia richieste JSON a `db_bridge.php`:
-- autenticazione **Bearer token** (`X-DBPlus-Token`);
-- firma **HMAC-SHA256** su `timestamp:body` (`X-DBPlus-Signature`,
-  `X-DBPlus-Timestamp`) con finestra di tolleranza anti-replay;
-- il server applica **rate limiting** per IP, **prepared statement**,
-  blocco dei multi-statement e pattern pericolosi, cap delle righe.
+### 3.3 HTTPS tunnel (bridge)
+`BridgeTransport` sends JSON requests to `db_bridge.php`:
+- **Bearer token** authentication (`X-DBPlus-Token`);
+- **HMAC-SHA256** signature over `timestamp:body` (`X-DBPlus-Signature`,
+  `X-DBPlus-Timestamp`) with anti-replay tolerance window;
+- the server applies **rate limiting** per IP, **prepared statements**, blocks
+  multi-statement and dangerous patterns, and caps returned rows.
 
-### 3.4 Script bridge `db_bridge.php`
-PHP 8.1+, `pdo_mysql`, zero dipendenze. Protocollo:
-- `POST {action:"ping"}` → versione server + latenza.
-- `POST {action:"execute", sql, params?, rowLimit}` → risultati.
+### 3.4 Bridge script `db_bridge.php`
+PHP 8.1+, `pdo_mysql`, zero dependencies. Protocol:
+- `POST {action:"ping"}` → server version + latency.
+- `POST {action:"execute", sql, params?, rowLimit}` → results.
 
-## 4. Funzionalità core (FASE 3)
+## 4. Core features (PHASE 3)
 
-- **Gestione connessioni:** profili in UserDefaults (solo metadati),
-  segreti nel Keychain, "Test connessione" con latenza e versione.
-- **Inspector:** albero schemi → tabelle/viste/routine; struttura via
-  `information_schema` (colonne, indici, FK, collation, `SHOW CREATE`).
-- **Data Grid:** paginazione `LIMIT/OFFSET`, ordinamento, filtro SQL,
-  editing inline, generazione trasparente di `INSERT/UPDATE/DELETE`
-  basata sulla chiave primaria (prepared statement).
-- **Workbench:** editor evidenziato, esecuzione multi-statement
-  (splitter rispettoso di stringhe/commenti/backtick), risultati con
-  tempo in ms e righe restituite/modificate.
+- **Connection management:** profiles stored in UserDefaults (metadata only),
+  secrets in the Keychain, connection cards with "Test connection" (latency and
+  version), per-profile keep-alive.
+- **Inspector:** schema tree → tables/views/routines; structure via
+  `information_schema` (columns, indexes, FKs, collation, `SHOW CREATE`).
+- **Data Grid:** `LIMIT/OFFSET` pagination (configurable rows per page, or
+  unlimited), sorting, SQL filter, inline editing, transparent
+  `INSERT/UPDATE/DELETE` generation based on the primary key (prepared
+  statements), type-aware cell editor (date/numeric/text, NULL toggle).
+- **Query console:** highlighted editor, multi-statement execution (splitter
+  respecting strings/comments/backticks), schema-aware autocomplete, results
+  with time in ms and rows returned/modified.
+- **CSV export** for query results and tables.
+- **Biometric lock** (Face ID / Touch ID) on saved connection profiles.
 
-## 5. Benchmarking (FASE 4)
+## 5. Security (PHASE 4)
 
-Modulo in-app che misura: latenza handshake/ping, throughput su dataset
-sintetici (1k/10k/50k), impronta di memoria via `task_info` durante lo
-streaming, resilienza (10 ping, keep-alive, teardown). Dettagli in
-[`BENCHMARKING.md`](BENCHMARKING.md).
+- **Destructive-operation guard:** confirmation for `DROP`, `TRUNCATE`,
+  `DELETE`/`UPDATE` without `WHERE`, `ALTER`, `RENAME`.
+- **Prepared statements** for every generated write.
+- **Keychain** for passwords/passphrases/tokens; temporary askpass helper.
+- **Bridge:** token + HMAC + rate limit + sanitization.
 
-## 6. Sicurezza (FASE 5)
+## 6. iOS / iPadOS adaptation
 
-- **Guardia operazioni distruttive:** conferma per `DROP`, `TRUNCATE`,
-  `DELETE`/`UPDATE` senza `WHERE`, `ALTER`, `RENAME`.
-- **Prepared statements** per ogni scrittura generata.
-- **Keychain** per password/passphrase/token; helper askpass temporaneo.
-- **Bridge:** token + HMAC + rate limit + sanificazione.
+Code is shared across platforms via `#if os(macOS)` guards:
 
-## 6bis. Adattamento a iOS/iPadOS
-
-Il codice è condiviso tra le piattaforme tramite guardie `#if os(macOS)`:
-
-| Componente | macOS | iOS/iPadOS |
+| Component | macOS | iOS/iPadOS |
 |---|---|---|
-| Client MySQL (MySQLNIO) | ✅ | ✅ |
-| Bridge HTTPS | ✅ | ✅ |
+| MySQL client (MySQLNIO) | ✅ | ✅ |
+| HTTPS bridge | ✅ | ✅ |
 | Keychain (`SecretStore`) | ✅ | ✅ |
-| Data grid / CRUD / benchmark | ✅ | ✅ |
-| Tunnel SSH | ✅ OpenSSH di sistema | ✅ client in-process (Citadel) |
-| Editor SQL | `NSTextView` + syntax highlighting | `TextEditor` (SwiftUI) |
-| Colori | `Color(nsColor:)` | `Color(uiColor:)` (helper `PlatformColor`) |
-| Selettore file | `NSOpenPanel` | `.fileImporter` (SwiftUI) |
-| Export report benchmark | `NSSavePanel` | nascosto |
+| Data grid / CRUD | ✅ | ✅ |
+| SSH tunnel | ✅ system OpenSSH | ✅ in-process client (Citadel) |
+| SQL editor | `NSTextView` + syntax highlighting | `TextEditor` (SwiftUI) + autocomplete chip bar |
+| Autocomplete | native NSTextView completions | suggestion chips |
+| Colors | `Color(nsColor:)` | `Color(uiColor:)` (helper `PlatformColor`) |
+| File picker | `NSOpenPanel` | `.fileImporter` (SwiftUI) |
 
-## 7. Struttura dei moduli
+## 7. Module structure
 
 ```
 DB+/
@@ -157,21 +154,22 @@ DB+/
   DB+/Core/            DatabaseTransport, DirectTransport, SSHTransport,
                        SSHTunnel, SSHProcessTunnel, SSHInProcessTunnel,
                        BridgeTransport, SQLSplitter, SQLGuard, SQLHighlighter,
-                       DBError
+                       DebugLog, Timeout, DBError
   DB+/Security/        SecretStore (Keychain)
   DB+/Services/        ConnectionStore, ConnectionSession, SchemaInspector,
-                       DataGridService, QueryRunner, BenchmarkService
-  DB+/UI/              MainWindow, Connection* , SchemaNavigator, TableDetail,
+                       DataGridService, QueryRunner, CSVExporter,
+                       SSHKeyGenerator, AppSettings
+  DB+/UI/              MainWindow, Connection*, SchemaNavigator, TableDetail,
                        DataGrid, RowEditor, QueryConsole, QueryResult,
-                       SQLTextEditor, Benchmark
-  Bridge/              db_bridge.php + README di deploy
-  docs/                ARCHITECTURE, EXPORT_COMPLIANCE, BENCHMARKING
+                       SQLTextEditor, CellEditorPanel, Settings
+  Bridge/              db_bridge.php + deploy README
+  docs/                ARCHITECTURE, EXPORT_COMPLIANCE
 ```
 
-## Generazione chiavi SSH
+## SSH key generation
 
-L'app genera coppie di chiavi Ed25519 in-app (swift-crypto genera,
-Citadel serializza nel formato OpenSSH `openssh-key-v1`). La chiave
-privata è NON cifrata e vive nella sandbox dell'app
-(`Application Support/SSHKeys/`), non accessibile ad altre app.
-La chiave pubblica va installata nel file `authorized_keys` del server.
+The app generates Ed25519 key pairs in-app (swift-crypto generates, Citadel
+serializes to the OpenSSH `openssh-key-v1` format). The private key is NOT
+encrypted and lives in `Documents/SSHKeys/` — reachable on iOS via file
+sharing (`UIFileSharingEnabled`), and on macOS under `~/Documents/SSHKeys`.
+The public key must be installed in the server's `authorized_keys` file.

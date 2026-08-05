@@ -1,132 +1,125 @@
-# DB+ — Conformità all'Esportazione di Software Crittografico
+# DB+ — Export Compliance for Cryptographic Software
 
-**Versione:** 1.0 — **Data:** 2026-08-01
+**Version:** 1.0 — **Date:** 2026-08-01
 
-Questo documento definisce la classificazione di DB+ rispetto alle
-regolamentazioni sul software crittografico e fornisce le dichiarazioni
-richieste per la distribuzione.
+This document defines the classification of DB+ with respect to cryptographic
+software regulations and provides the statements required for distribution.
 
-## 1. Oggetto
+## 1. Subject
 
-DB+ è un'applicazione macOS/iOS (SwiftUI) per la gestione di database
-MySQL/MariaDB. Utilizza esclusivamente **crittografia standard** a
-scopi di trasporto/autenticazione:
+DB+ is a macOS/iOS (SwiftUI) application for managing MySQL/MariaDB databases.
+It uses exclusively **standard cryptography** for transport/authentication
+purposes:
 
-| Funzione | Algoritmo / Meccanismo | Uso |
+| Function | Algorithm / Mechanism | Use |
 |---|---|---|
-| Connessione diretta | TLS 1.2/1.3 | Cifratura del canale verso MySQL |
-| Tunnel SSH | SSH — OpenSSH (macOS) / Citadel in-process (iOS): RSA/Ed25519, AES-GCM/CTR, ChaCha20-Poly1305 | Port forwarding cifrato |
-| Bridge HTTPS | TLS 1.2/1.3 (ATS) | Trasporto delle richieste JSON |
-| Firma del bridge | HMAC-SHA256 | Autenticazione messaggi (anti-tamper) |
-| Archiviazione segreti | Keychain di sistema (AES) | Credenziali locali |
-| Nonce anti-replay | Timestamp + firma | Tunnel HTTPS |
+| Direct connection | TLS 1.2/1.3 | Encryption of the channel to MySQL |
+| SSH tunnel | SSH — OpenSSH (macOS) / Citadel in-process (iOS): RSA/Ed25519, AES-GCM/CTR, ChaCha20-Poly1305 | Encrypted port forwarding |
+| HTTPS bridge | TLS 1.2/1.3 (ATS) | Transport of JSON requests |
+| Bridge signing | HMAC-SHA256 | Message authentication (anti-tamper) |
+| Secret storage | System Keychain (AES) | Local credentials |
+| Anti-replay nonce | Timestamp + signature | HTTPS tunnel |
 
-Non è presente crittografia proprietaria, né funzioni per nascondere
-il contenuto all'utente. Non sono presenti funzionalità "custom"
-soggette alle categorie speciali dell'Export Administration
-Regulations (EAR) degli Stati Uniti.
+There is no proprietary cryptography, nor functionality to hide content from
+the user. There are no "custom" features subject to the special categories of
+the US Export Administration Regulations (EAR).
 
-## 2. Classificazione US Export Administration Regulations (EAR)
+## 2. US Export Administration Regulations (EAR) classification
 
-DB+ rientra nella categoria **5A002 / 5D002** (merce crittografica)
-ma soddisfa i requisiti di **esenzione "mass market"** ai sensi di
-**15 CFR 740.17(b)** e della nota di classificazione alla categoria 5:
+DB+ falls under category **5A002 / 5D002** (cryptographic goods) but satisfies
+the requirements of the **"mass market" exemption** under **15 CFR 740.17(b)**
+and the classification note for category 5:
 
-- la crittografia usa **algoritmi standard pubblici** (TLS, SSH, AES);
-- le funzioni crittografiche **non sono controllabili né customizzabili**
-  dall'utente oltre le impostazioni documentate;
-- l'applicazione **non può essere utilizzata** per nascondere
-  comunicazioni a terzi né per finalità di intelligence/surveillance;
-- interoperabile con servizi standard (server MySQL/MariaDB, SSH).
+- cryptography uses **standard public algorithms** (TLS, SSH, AES);
+- cryptographic functions are **not controllable nor customizable** by the
+  user beyond the documented settings;
+- the application **cannot be used** to hide communications from third
+  parties, nor for intelligence/surveillance purposes;
+- interoperable with standard services (MySQL/MariaDB servers, SSH).
 
-Di conseguenza il prodotto può essere classificato come
-**ENC – mass market / 5D992.c** ai fini EAR (Commerce Control List),
-con ECCN di default **5D992** e scheda **ENC**, senza richiedere
-licenza di esportazione per il mercato di massa.
+Consequently the product can be classified as **ENC – mass market / 5D992.c**
+for EAR purposes (Commerce Control List), with default ECCN **5D992** and
+**ENC** entry, without requiring an export license for the mass market.
 
-> Nota: questa è una valutazione tecnica fornita a scopo informativo.
-> La classificazione ufficiale va confermata con il proprio ufficio
-> legale/export control prima della distribuzione commerciale.
+> Note: this is a technical assessment provided for informational purposes.
+> The official classification must be confirmed with your legal/export
+> control office before commercial distribution.
 
-## 3. Dichiarazione per l'App Store (Apple)
+## 3. App Store declaration (Apple)
 
-Apple richiede, durante la compilazione della scheda "App Store
-Connect" → **App Privacy/Export Compliance**, la risposta a queste
-domande. Per DB+:
+Apple requires, when filling out the "App Store Connect" → **App Privacy /
+Export Compliance** form, answers to these questions. For DB+:
 
-1. **L'app usa crittografia?** Sì (TLS/SSH/HMAC come sopra).
-2. **La crittografia è registrata per lo standard internazionale?** Sì.
-3. **L'app è conforme alle esenzioni della categoria 5?** Sì
-   (algoritmi standard, "mass market", 15 CFR 740.17).
-4. **L'app usa una restrizione di esportazione non esente?** No.
+1. **Does the app use cryptography?** Yes (TLS/SSH/HMAC as above).
+2. **Is the cryptography registered for international standard?** Yes.
+3. **Is the app compliant with category 5 exemptions?** Yes
+   (standard algorithms, "mass market", 15 CFR 740.17).
+4. **Does the app use a non-exempt export restriction?** No.
 
-Pertanto, la risposta da selezionare è **"Sì, in conformità con le
-esenzioni della Categoria 5"** e il flag `ITSAppUsesNonExemptEncryption`
-deve essere **`false`**.
+Therefore, the answer to select is **"Yes, in compliance with Category 5
+exemptions"**, and the `ITSAppUsesNonExemptEncryption` flag must be **`false`**.
 
-### 3.1 Verifica dell'Info.plist
+### 3.1 Info.plist verification
 
-Nel progetto il valore è impostato sia nel file `Info.plist` sia via
-build setting:
+In the project the value is set both in the `Info.plist` file and via build
+setting:
 
 ```xml
 <key>ITSAppUsesNonExemptEncryption</key>
 <false/>
 ```
 
-### 3.2 Nota per il futuro
+### 3.2 Note for the future
 
-Se in una release futura si aggiungesse crittografia **non esente**
-(es. cifratura documenti con propria chiave, DRM, ecc.),
-l'applicazione dovrebbe:
-1. impostare `ITSAppUsesNonExemptEncryption = true`;
-2. richiedere la classificazione aggiornata del prodotto;
-3. aggiornare questo documento e la scheda App Store Connect.
+If a future release added **non-exempt** cryptography (e.g. document
+encryption with its own key, DRM, etc.), the application should:
+1. set `ITSAppUsesNonExemptEncryption = true`;
+2. request an updated product classification;
+3. update this document and the App Store Connect form.
 
-## 4. Conformità macOS (notarizzazione)
+## 4. macOS compliance (notarization)
 
-La distribuzione del prodotto si basa su:
-- **Hardened Runtime** abilitato;
-- **notarizzazione** con Apple Developer ID;
-- **App Sandbox** disattivata per il tool: il modulo SSH lancia
-  `/usr/bin/ssh` e un'app sandboxata non può generare processi figli.
-  Per una futura distribuzione sandboxata andrebbe rivisto il modulo
-  SSH (es. client SSH puro in-process).
+Product distribution is based on:
+- **Hardened Runtime** enabled;
+- **notarization** with Apple Developer ID;
+- **App Sandbox disabled** for the tool: the SSH module launches
+  `/usr/bin/ssh`, and a sandboxed app cannot spawn child processes.
+  For a future sandboxed distribution the SSH module would need to be
+  reworked (e.g. pure in-process SSH client).
 
 ### 4.1 iOS / iPadOS
 
-Sulla piattaforma iOS/iPadOS:
-- l'**App Sandbox è sempre attiva** (imposta dal sistema);
-- il **tunnel SSH usa un client in-process** (Citadel su SwiftNIO +
-  swift-crypto) invece di `/usr/bin/ssh`: nessun processo figlio, quindi
-  il vincolo sul lancio di processi non si applica; le chiavi private
-  (importate o generate) sono salvate in `Documents/SSHKeys`,
-  raggiungibili da Finder via file sharing (`UIFileSharingEnabled`);
-- il resto del trasporto (diretta, bridge HTTPS) opera entro i
-  permessi di rete standard;
-- per l'**App Store** vale la stessa dichiarazione di esportazione
-  della sezione 3 (`ITSAppUsesNonExemptEncryption = false`): la
-  crittografia usata (TLS, SSH, HMAC-SHA256, AES del Keychain) è
-  esente ai sensi della categoria 5.
+On the iOS/iPadOS platform:
+- **App Sandbox is always active** (imposed by the system);
+- the **SSH tunnel uses an in-process client** (Citadel on SwiftNIO +
+  swift-crypto) instead of `/usr/bin/ssh`: no child process, so the process
+  restriction does not apply; private keys (imported or generated) are stored
+  in `Documents/SSHKeys`, reachable from Finder via file sharing
+  (`UIFileSharingEnabled`);
+- the rest of the transport (direct, HTTPS bridge) operates within standard
+  network permissions;
+- for the **App Store** the same export declaration of section 3 applies
+  (`ITSAppUsesNonExemptEncryption = false`): the cryptography used (TLS, SSH,
+  HMAC-SHA256, Keychain AES) is exempt under category 5.
 
 ## 5.1 Firebase Crashlytics
 
-L'app integra **Firebase Crashlytics** per il report dei crash:
+The app integrates **Firebase Crashlytics** for crash reporting:
 
-- la comunicazione con i servizi Google avviene su **HTTPS (TLS 1.2/1.3)**
-  — crittografia standard, esente ai sensi della categoria 5;
-- **non** introduce crittografia non esente: il flag
-  `ITSAppUsesNonExemptEncryption` resta **`false`**;
-- per l'**App Privacy** di App Store Connect va dichiarata la raccolta di
-  **diagnostica (crash data)** da parte del provider Firebase;
-- la raccolta può essere disattivata a runtime con
+- communication with Google services happens over **HTTPS (TLS 1.2/1.3)** —
+  standard cryptography, exempt under category 5;
+- it does **not** introduce non-exempt cryptography: the
+  `ITSAppUsesNonExemptEncryption` flag stays **`false`**;
+- for **App Privacy** in App Store Connect, the collection of
+  **diagnostics (crash data)** by the Firebase provider must be declared;
+- collection can be disabled at runtime with
   `Crashlytics.setCrashlyticsCollectionEnabled(false)`.
 
-## 5. Best practice di sicurezza correlate
+## 5. Related security best practices
 
-- Segreti conservati **solo** nel Keychain (`kSecAttrAccessible
+- Secrets stored **only** in the Keychain (`kSecAttrAccessible
   AfterFirstUnlockThisDeviceOnly`).
-- Helper `SSH_ASKPASS` temporaneo (`0600`) eliminato al teardown.
-- Nessuna credenziale nei log o nelle risposte del bridge.
-- Prepared statement sistematici nelle operazioni scritte.
-- Rate limiting e HMAC sul bridge remoto.
+- Temporary `SSH_ASKPASS` helper (`0600`) removed at teardown.
+- No credentials in logs or bridge responses.
+- Systematic prepared statements for write operations.
+- Rate limiting and HMAC on the remote bridge.
