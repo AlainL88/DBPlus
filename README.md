@@ -49,7 +49,7 @@ _Coming soon — screenshots of the workspace, SQL console and data grid._
 3. Select the **DB+** scheme and your target device.
 4. Build & run (⌘R).
 
-> **Firebase / Crashlytics:** the app configures Crashlytics at launch, which requires a valid `GoogleService-Info.plist` in the **DB+** target. Add your own Firebase configuration to build and run, or remove the Crashlytics calls if you don't need crash reporting.
+> **Firebase / Crashlytics:** the app configures Crashlytics at launch, which requires a valid `GoogleService-Info.plist` in the **DB+** target. Add your own Firebase configuration to build and run, or remove the Crashlytics calls if you don't need crash reporting. On Xcode Cloud, the file is restored from a base64 secret by `ci_scripts/ci_post_clone.sh`.
 
 ## Architecture
 
@@ -67,8 +67,6 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design.
 ## Support the project ☕
 
 DB+ is free, open source, and will stay that way. Building a polished app for three platforms takes evenings and weekends — if DB+ saves you time at work, a coffee keeps the project alive and the next feature shipping sooner.
-
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?logo=buy-me-a-coffee&logoColor=000)](https://buymeacoffee.com/alainl)
 
 <a href="https://buymeacoffee.com/alainl"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=☕&slug=alainl&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" alt="Buy Me A Coffee"></a>
 
