@@ -1,66 +1,65 @@
-# Bridge HTTPS — `db_bridge.php`
+# HTTPS Bridge — `db_bridge.php`
 
-Script remoto per la modalità **"Tunnel HTTPS (Bridge)"** di DB+.
-Consente di gestire un database MySQL/MariaDB raggiungibile solo
-attraverso un server web (es. hosting condiviso cPanel), eseguendo
-le query **in locale sul server** e restituendo JSON all'app.
+Remote script for DB+ **"HTTPS Tunnel (Bridge)"** mode. It lets you manage a
+MySQL/MariaDB database that is only reachable through a web server (e.g.
+shared cPanel hosting), by running the queries **locally on the server** and
+returning JSON to the app.
 
-## Requisiti
+## Requirements
 
-- PHP **8.1+** con estensione **PDO MySQL** (`pdo_mysql`);
-- accesso di rete dal server web al MySQL (di solito `127.0.0.1:3306`);
-- **HTTPS** sul server web (obbligatorio: l'app rifiuta URL non HTTPS).
+- PHP **8.1+** with the **PDO MySQL** extension (`pdo_mysql`);
+- network access from the web server to MySQL (usually `127.0.0.1:3306`);
+- **HTTPS** on the web server (required: the app rejects non-HTTPS URLs).
 
-## Installazione
+## Installation
 
-1. Copia `db_bridge.php` in una cartella pubblica
-   (es. `public_html/db_bridge.php`).
-2. Modifica le costanti in cima al file:
+1. Copy `db_bridge.php` to a public folder (e.g. `public_html/db_bridge.php`).
+2. Edit the constants at the top of the file:
 
    ```php
-   const BRIDGE_TOKEN       = '<token casuale>';        // es. bin2hex(random_bytes(32))
-   const BRIDGE_HMAC_SECRET = '<segreto casuale>';      // es. bin2hex(random_bytes(32))
+   const BRIDGE_TOKEN       = '<random token>';          // e.g. bin2hex(random_bytes(32))
+   const BRIDGE_HMAC_SECRET = '<random secret>';         // e.g. bin2hex(random_bytes(32))
    const DB_HOST = '127.0.0.1';
    const DB_PORT = 3306;
-   const DB_NAME = '<nome database>';                    // opzionale
-   const DB_USER = '<utente mysql>';
-   const DB_PASS = '<password mysql>';
+   const DB_NAME = '<database name>';                    // optional
+   const DB_USER = '<mysql user>';
+   const DB_PASS = '<mysql password>';
    ```
 
-   > Genera i segreti con: `php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"`
-3. Verifica la sintassi: `php -l db_bridge.php`
-4. Proteggi la cartella dai listati e limita l'accesso al file.
+   > Generate the secrets with: `php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"`
+3. Check the syntax: `php -l db_bridge.php`
+4. Protect the folder from directory listing and restrict access to the file.
 
-## Configurazione in DB+
+## Configuration in DB+
 
-1. Apri **Nuova connessione**.
-2. Modalità → **Tunnel HTTPS (Bridge)**.
-3. **URL dello script**: `https://tuoserver.it/db_bridge.php`
-4. **Token Bearer** e **Segreto HMAC** (stessi valori dello script).
-5. Imposta host/porta/utente del database (usati dal bridge).
+1. Open **New connection**.
+2. Mode → **HTTPS Tunnel (Bridge)**.
+3. **Script URL**: `https://yourserver.com/db_bridge.php`
+4. **Bearer token** and **HMAC secret** (same values as the script).
+5. Set the database host/port/user (used by the bridge).
 
-## Sicurezza integrata
+## Built-in security
 
-- Autenticazione **Bearer token** verificata con `hash_equals`.
-- **HMAC-SHA256** su `timestamp:body` con finestra anti-replay (±300 s).
-- **Rate limiting** per IP (token bucket, 120 req/min di default).
-- **Prepared statement** (`PDO::ATTR_EMULATE_PREPARES = false`).
-- **Multi-statement bloccato**; pattern pericolosi bloccati
+- **Bearer token** authentication verified with `hash_equals`.
+- **HMAC-SHA256** over `timestamp:body` with anti-replay window (±300 s).
+- **Rate limiting** per IP (token bucket, 120 req/min by default).
+- **Prepared statements** (`PDO::ATTR_EMULATE_PREPARES = false`).
+- **Multi-statement blocked**; dangerous patterns blocked
   (`INTO OUTFILE`, `LOAD_FILE`, `INTO DUMPFILE`, `LOAD DATA`).
-- Limite righe per risposta (`MAX_ROWS`, default 5000) e lunghezza body.
-- Nessuna credenziale nei log o nelle risposte.
+- Row limit per response (`MAX_ROWS`, default 5000) and body length cap.
+- No credentials in logs or responses.
 
 ## Endpoint
 
-| Azione | Body | Risposta |
+| Action | Body | Response |
 |---|---|---|
 | `ping` | `{"action":"ping"}` | `{ok, serverVersion, ms}` |
 | `execute` | `{"action":"execute","sql":"…","params":[…],"rowLimit":N}` | `{ok, columns, rows, affectedRows, lastInsertID, ms, truncated}` |
 
 ## Troubleshooting
 
-- **401** → token o firma non validi (controlla orologio del server e
+- **401** → invalid token or signature (check server clock and
   `BRIDGE_HMAC_SECRET`).
-- **429** → rate limit raggiunto.
-- **503** → credenziali database errate o MySQL non raggiungibile.
-- **404** → azione non riconosciuta (script non aggiornato).
+- **429** → rate limit reached.
+- **503** → wrong database credentials or MySQL unreachable.
+- **404** → unrecognized action (script not up to date).
