@@ -40,6 +40,8 @@ _Coming soon — screenshots of the workspace, SQL console and data grid._
 | [Citadel](https://github.com/grdschomberg/citadel) | In-process SSH client for iOS (SwiftNIO + swift-crypto) |
 | [firebase-ios-sdk](https://github.com/firebase/firebase-ios-sdk) | Crashlytics crash reporting |
 
+> **Firebase / Crashlytics:** the `firebase-ios-sdk` package is **required to build** (DB+ imports `FirebaseCore` / `FirebaseCrashlytics`). What is optional is the runtime configuration: Crashlytics activates only when a `GoogleService-Info.plist` is present in the **DB+** target. Add your own Firebase config to enable crash reporting, or omit the file to run without it. On Xcode Cloud, the file is restored from a base64 secret by `ci_scripts/ci_post_clone.sh`.
+
 ## Build
 
 1. Clone the repository:
@@ -49,8 +51,6 @@ _Coming soon — screenshots of the workspace, SQL console and data grid._
 2. Open `DB+.xcodeproj` in Xcode.
 3. Select the **DB+** scheme and your target device.
 4. Build & run (⌘R).
-
-> **Firebase / Crashlytics:** the `firebase-ios-sdk` package is **required to build** (DB+ imports `FirebaseCore` / `FirebaseCrashlytics`). What is optional is the runtime configuration: Crashlytics activates only when a `GoogleService-Info.plist` is present in the **DB+** target. Add your own Firebase config to enable crash reporting, or omit the file to run without it. On Xcode Cloud, the file is restored from a base64 secret by `ci_scripts/ci_post_clone.sh`.
 
 ## Architecture
 
